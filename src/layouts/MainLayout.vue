@@ -183,6 +183,7 @@ export default {
         { icon: 'groups_2', text: 'Passageiros', to: '/passageiros' },
         { icon: 'no_crash', text: 'Corridas', to: '/corridas' },
         { icon: 'help_center', text: 'Central de ajuda', to: '/usuarios1' },
+        { icon: 'photo', text: 'Central de publicidade', to: '/publicidades' },
       ],
       links2: [
         { icon: 'folder', text: 'Library' },
