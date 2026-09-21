@@ -1,6 +1,6 @@
 <template>
   <q-page class="q-pa-md">
-    <CriarPublicidade @created="onRequest" v-model="dialog.cadastrar" />
+    <CriarPublicidade @onRequest="onRequest" v-model="dialog.cadastrar" />
     <EditarUsuario @updated="onRequest" v-model="dialog.editar" :usuarioId="usuarioId" />
     <MostrarUsuario v-model="dialog.visualizar" />
     <DocumentosUsuario :usuarioId="usuarioId" v-model="dialog.documentos" />
@@ -11,14 +11,6 @@
       v-model="dialog.excluir"
     />
     <q-card>
-      <!-- <div class="row wrap justify-between items-start content-start">
-        <div>
-          <q-btn icon="person_add_alt" color="primary" @click="dialog.cadastrar = true" />
-        </div>
-        <div class="q-pa-md">
-          <q-btn icon="person_add_alt" color="primary" @click="dialog.cadastrar = true" />
-        </div>
-      </div> -->
       <q-table
         :rows="data"
         :columns="columns"
@@ -84,7 +76,7 @@
             <q-td key="imagem">
               <q-item>
                 <q-item-section thumbnail>
-                  <img src="https://cdn.quasar.dev/img/mountains.jpg" />
+                  <img :src="props.row.url" />
                 </q-item-section>
               </q-item>
             </q-td>
@@ -95,17 +87,6 @@
                   <q-spinner-hourglass />
                 </template>
               </q-btn>
-              <!-- 
-              <q-btn
-                @click=";(dialog.documentos = true), (usuarioId = props.row.id)"
-                flat
-                dense
-                icon="list_alt"
-              >
-                <q-tooltip transition-show="flip-right" transition-hide="flip-left">
-                  Documentos
-                </q-tooltip>
-              </q-btn> -->
 
               <q-btn @click="openExcluir(props.row)" dense flat icon="delete">
                 <q-tooltip transition-show="flip-right" transition-hide="flip-left">
@@ -182,7 +163,7 @@ const columns = [
   { name: 'id', label: 'ID', field: 'id', align: 'left' },
   { name: 'cidade_id', label: 'Cidade', field: 'cidade_id', align: 'left' },
   { name: 'titulo', label: 'Título', field: 'titulo', align: 'left' },
-  { name: 'imagem', label: 'Banner', field: 'imagem', align: 'left' },
+  { name: 'imagem', label: 'Banner', field: 'path', align: 'left' },
   { name: 'acoes', label: 'Ações', align: 'center' },
 ]
 

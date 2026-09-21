@@ -1,170 +1,105 @@
 <template>
-  <div :class="$q.dark.isActive ? 'dark_mode' : ''">
-    <q-dialog v-model="model" @before-show="onBeforeShow" @before-hide="quandoDialogFechar">
-      <q-card style="width: 700px; max-width: 80vw" class="row q-col-gutter-sm">
-        <q-card-section>
-          <q-form @submit.prevent="onSubmit">
-            <div class="row">
-              <!-- IMAGEM -->
-              <div class="col-12">
-                <q-card-section class="flex justify-center">
-                  <q-avatar size="12rem" v-if="imagemProfile">
-                    <q-img ratio="1" :src="imagemProfile">
-                      <div class="flex caption absolute-full text-h5 flex-center">
-                        <span class="btn fileinput-button">
-                          <q-icon name="photo_camera" color="white" />
-                          <br />Alterar<br />imagem
-                          <input type="file" @change="imageSelected" />
-                        </span>
-                      </div>
-                    </q-img>
-                  </q-avatar>
+  <section>
+    <q-dialog v-model="model" @before-hide="beforeHide" @before-show="beforeShow">
+      <q-card style="width: 700px; max-width: 80vw">
+        <!-- HEADER -->
+        <q-toolbar>
+          <!--
+          <q-avatar
+            rounded
+            size="lg"
+            icon="file_present"
+            color="primary"
+            text-color="white"
+          />
+          -->
 
-                  <q-avatar v-else color="primary" size="12rem">
-                    <div class="flex absolute-full text-h5 flex-center">
-                      <span class="btn fileinput-button">
-                        <q-icon name="add_photo_alternate" size="40px" color="white" />
-                        <br />Adicionar<br />imagem
-                        <input type="file" @change="imageSelected" />
-                      </span>
-                    </div>
-                  </q-avatar>
-                </q-card-section>
+          <q-toolbar-title>
+            <span class="text-weight-bold">Criar anúncio</span>
+          </q-toolbar-title>
 
-                <div class="flex justify-center">
-                  <q-btn
-                    v-if="imagemProfile"
-                    flat
-                    icon="close"
-                    color="primary"
-                    label="REMOVER IMAGEM"
-                    @click="removerImagem"
-                  />
-                </div>
-              </div>
-            </div>
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-toolbar>
 
+        <q-separator />
+
+        <div class="q-pa-md">
+          <q-card-section>
             <div class="row">
               <!-- INPUTS -->
               <div class="col-md-6 col-12">
                 <q-item>
                   <q-input
                     class="full-width"
-                    v-model="usuario.name"
-                    label="Nome completo *"
+                    v-model="banner.titulo"
+                    label="Título"
                     outlined
                     dense
-                    :rules="[(val) => val.length >= 3 || 'Campo obrigatório']"
+                    :rules="[(val) => (val && val.length >= 3) || 'Campo obrigatório']"
                   />
                 </q-item>
               </div>
 
               <div class="col-md-6 col-12">
                 <q-item>
-                  <q-input
-                    class="full-width"
-                    v-model="usuario.telefone"
-                    label="Telefone *"
-                    outlined
+                  <q-select
+                    v-model="banner.cidade"
                     dense
-                    mask="(##) ##### - ####"
-                    :rules="[(val) => val.length >= 17 || 'Campo obrigatório']"
-                  />
-                </q-item>
-              </div>
-
-              <div class="col-md-6 col-12">
-                <q-item>
-                  <q-input
-                    class="full-width"
-                    v-model="usuario.cpf"
-                    label="CPF *"
                     outlined
-                    dense
-                    mask="###.###.###-##"
-                    :rules="[(val) => val.length >= 14 || 'Campo obrigatório']"
-                  />
-                </q-item>
-              </div>
-
-              <div class="col-md-6 col-12">
-                <q-item>
-                  <q-input
                     class="full-width"
-                    label="Data Nascimento"
-                    dense
-                    mask="##/##/####"
-                    outlined
-                    v-model="usuario.data_nascimento"
-                    :rules="[(data_inicial) => validateDateFormat(data_inicial)]"
-                  >
-                    <template v-slot:append>
-                      <q-icon name="event" class="cursor-pointer">
-                        <q-popup-proxy
-                          ref="qDateProxy"
-                          transition-show="scale"
-                          transition-hide="scale"
-                        >
-                          <q-date
-                            v-model="usuario.data_nascimento"
-                            mask="DD/MM/YYYY"
-                            @input="() => inputData()"
-                          ></q-date>
-                        </q-popup-proxy>
-                      </q-icon>
-                    </template>
-                  </q-input>
-                </q-item>
-              </div>
-
-              <div class="col-md-6 col-12">
-                <q-item>
-                  <q-input
-                    class="full-width"
-                    v-model="usuario.email"
-                    label="Email *"
-                    outlined
-                    dense
-                    :rules="[(val) => val.length >= 1 || 'Campo obrigatório']"
-                  />
-                </q-item>
-              </div>
-              <div class="col-md-6 col-12">
-                <q-item>
-                  <q-input
-                    class="full-width"
-                    v-model="usuario.password"
-                    label="Senha"
-                    type="password"
-                    outlined
-                    dense
-                    :rules="[(val) => val.length >= 3 || 'Campo obrigatório']"
+                    label="Cidade"
+                    :options="cidades"
+                    use-input
+                    option-label="nome"
+                    option-value="id"
+                    emit-value
+                    map-options
+                    :rules="[(val) => !!val || 'Campo obrigatório']"
+                    @filter="filter"
+                    clearable
                   />
                 </q-item>
               </div>
             </div>
-            <q-card-actions class="q-mt-md" align="center">
-              <q-btn flat label="Cancelar" v-close-popup />
-              <q-btn type="submit" color="primary" icon-right="save" label="Salvar" />
+
+            <q-file
+              class="q-mt-lg"
+              filled
+              bottom-slots
+              v-model="file"
+              label="Selecione o arquivo"
+              counter
+              max-files="1"
+            >
+              <template v-slot:before>
+                <q-icon name="upload_file" />
+              </template>
+
+              <template v-slot:append>
+                <q-btn round dense flat icon="add" @click.stop.prevent />
+              </template>
+            </q-file>
+
+            <div class="q-mt-md" align="center">
               <q-btn
-                @click="preecherDados"
-                color="green"
-                icon-right="edit"
-                label="Preencher dados"
+                v-if="file"
+                @click="request()"
+                label="Enviar"
+                color="primary"
+                class="q-mt-md"
               />
-            </q-card-actions>
-          </q-form>
-        </q-card-section>
+            </div>
+          </q-card-section>
+        </div>
       </q-card>
     </q-dialog>
-  </div>
+  </section>
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { reactive, computed, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
-import moment from 'moment'
 
 // PROPS
 const props = defineProps({
@@ -172,9 +107,9 @@ const props = defineProps({
 })
 
 // EMITS
-const emit = defineEmits(['update:modelValue', 'created'])
+const emit = defineEmits(['update:modelValue', 'updated'])
 
-// Q
+// QUASAR
 const $q = useQuasar()
 
 // MODEL
@@ -183,198 +118,101 @@ const model = computed({
   set: (val) => emit('update:modelValue', val),
 })
 
-const image = ref(null)
-const imagemProfile = ref('')
+// STATE
+const file = ref(null)
 
-// FORM
-const usuario = reactive({
-  name: '',
-  telefone: '',
-  cpf: '',
-  data_nascimento: '',
-  email: '',
-  password: '',
-  type: '',
+const banner = reactive({
+  titulo: '',
+  cidade: null,
 })
 
-// METHODS
-function quandoDialogFechar() {
-  limparForm()
+const cidades = ref([])
+const optCidades = ref([])
+
+// LIFECYCLE
+async function beforeShow() {
+  try {
+    const data = await getCidades()
+    cidades.value = [...data]
+    optCidades.value = [...data]
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Erro ao carregar as cidades.',
+    })
+  }
 }
 
-function validateDateFormat(date) {
-  const regex = /^\d{2}\/\d{2}\/\d{4}$/
-
-  if (!date) return true
-
-  if (!regex.test(date)) {
-    return 'Formato de data inválido (DD/MM/YYYY)'
-  }
-
-  const [day, month, year] = date.split('/').map(Number)
-
-  // Verificar se o dia está no intervalo de 1 a 31 (dependendo do mês)
-  if (day < 1 || day > 31) {
-    return 'Dia inválido'
-  }
-
-  // Verificar se o mês está no intervalo de 1 a 12
-  if (month < 1 || month > 12) {
-    return 'Mês inválido'
-  }
-
-  // Verificar se o ano é maior que 0 (não negativo)
-  if (year <= 0) {
-    return 'Ano inválido'
-  }
-
-  // Verificar se o dia é válido para o mês (considerando anos bissextos)
-  const daysInMonth = new Date(year, month, 0).getDate()
-  if (day > daysInMonth) {
-    return 'Dia inválido para o mês selecionado'
-  }
-
-  return true
-}
-
-function limparForm() {
-  image.value = null
-  imagemProfile.value = ''
-  Object.assign(usuario, {
-    name: '',
-    telefone: '',
-    cpf: '',
-    data_nascimento: '',
-    email: '',
-    password: '',
+async function beforeHide() {
+  file.value = null
+  Object.assign(banner, {
+    titulo: '',
+    cidade: null,
   })
 }
 
-function onBeforeShow() {
-  // simulação
-  console.log(onBeforeShow)
-}
+// FILTER DO Q-SELECT
+function filter(val, update) {
+  update(() => {
+    if (!val) {
+      cidades.value = [...optCidades.value]
+      return
+    }
+    // Remove acentos para facilitar a pesquisa.
+    const texto = removerAcentos(val.toLowerCase().trim())
 
-function imageSelected(e) {
-  const file = e.target.files?.[0]
+    cidades.value = optCidades.value.filter((cidade) => {
+      const nome = removerAcentos(String(cidade.nome || '').toLowerCase())
 
-  if (!file) {
-    console.warn('Nenhuma imagem selecionada')
-    return
-  }
-
-  image.value = file
-
-  const reader = new FileReader()
-  reader.onload = (ev) => {
-    imagemProfile.value = ev.target.result
-  }
-  reader.readAsDataURL(file)
-}
-
-function removerImagem() {
-  imagemProfile.value = ''
-  image.value = null
-}
-
-function onSubmit() {
-  cadastrarUsuario()
-}
-
-function preecherDados() {
-  Object.assign(usuario, {
-    name: 'name',
-    telefone: '69981400661',
-    cpf: '11149897291',
-    data_nascimento: '21/11/1992',
-    email: 'mail@mail.com',
-    password: '123',
-    type: 'motorista',
+      return nome.includes(texto)
+    })
   })
 }
 
-function cadastrarUsuario() {
-  // 📅 FORMATAR DATA (DD/MM/YYYY → YYYY/MM/DD)
-  console.log(usuario, 'usuario data1')
+// Remove acentos
+function removerAcentos(texto) {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
 
-  const dataFormatada = usuario.data_nascimento
-    ? moment(usuario.data_nascimento, 'DD/MM/YYYY').format('YYYY/MM/DD')
-    : null
-  console.log(usuario, 'usuario data2')
-
-  // 🧼 LIMPAR CPF (remove tudo que não for número)
-  const cpfLimpo = usuario.cpf ? usuario.cpf.replace(/\D/g, '') : ''
-
+// ACTION
+function request() {
   const data = new FormData()
 
-  if (image.value) data.append('image', image.value)
-
-  // CLONE para não alterar o objeto original
-  const payload = {
-    ...usuario,
-    data_nascimento: dataFormatada,
-    cpf: cpfLimpo,
+  if (file.value) {
+    data.append('arquivo', file.value)
   }
 
-  Object.keys(payload).forEach((key) => {
-    data.append(key, payload[key] ?? '')
-  })
+  data.append('cidade_id', banner.cidade)
+  data.append('titulo', banner.titulo)
 
   api
-    .post('/users', data, {
+    .post('/publicidades', data, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     })
     .then((res) => {
-      $q.notify({ type: 'positive', message: res.data.message })
-      emit('created')
+      $q.notify({
+        type: 'positive',
+        message: res.data.message,
+      })
+
+      emit('onRequest')
+
       model.value = false
     })
     .catch((err) => {
-      $q.notify({ type: 'negative', message: err.response?.data?.message })
+      $q.notify({
+        type: 'negative',
+        message: err.response?.data?.message || 'Erro ao criar anúncio.',
+      })
     })
 }
-</script>
 
-<style scoped>
-/* CSS ORIGINAL MANTIDO */
-.caption {
-  opacity: 0;
-  transition: linear 1s;
+// API
+async function getCidades() {
+  const { data } = await api.get('/cidades')
+
+  return data
 }
-.caption:hover {
-  opacity: 1;
-}
-.btn {
-  display: inline-block;
-  padding: 6px 12px;
-  margin-bottom: 0;
-  font-size: 25px;
-  font-weight: normal;
-  line-height: 1.42857143;
-  text-align: center;
-  white-space: nowrap;
-  vertical-align: middle;
-  cursor: pointer;
-  user-select: none;
-  border: 1px solid transparent;
-  border-radius: 4px;
-}
-.btn-success {
-  color: #fff;
-}
-.fileinput-button {
-  position: relative;
-  overflow: hidden;
-}
-.fileinput-button input {
-  position: absolute;
-  top: 0;
-  right: 0;
-  margin: 0;
-  opacity: 0;
-  font-size: 200px;
-  cursor: pointer;
-}
-</style>
+</script>
