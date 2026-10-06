@@ -66,6 +66,11 @@ const routes = [
         component: () =>
           import('src/pages/PaginaProdutoCategorias.vue'),
       },
+      {
+        path: 'publicidades',
+        component: () =>
+          import('src/pages/publicidades/PaginaPublicidades.vue'),
+      },
     ],
   },
 

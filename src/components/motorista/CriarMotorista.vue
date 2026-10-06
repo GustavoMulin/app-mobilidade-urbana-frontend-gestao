@@ -107,7 +107,7 @@
                         dense
                         outlined
                         class="full-width"
-                        label="Categoira CNH *"
+                        label="Categoria CNH *"
                         :options="CnhCategorias"
                         map-options
                         :rules="[(val) => !!val || 'Campo obrigatório']"
