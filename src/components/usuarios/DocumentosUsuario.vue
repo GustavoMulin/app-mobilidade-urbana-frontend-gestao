@@ -1,29 +1,47 @@
 <template>
   <section>
     <SubirArquivo
-      @updated="getMotoristaDocumentos()"
+      @updated="onDocumentoUpdated"
       v-model="dialog.envairArquivo"
-      :usuarioId="usuario?.id"
+      :motorista-id="motoristaId"
       :documento="documentoSelecionado"
     />
     <q-dialog v-model="model" @before-show="beforeShow" @before-hide="onBeforeHide">
-      <q-card style="width: 600px; max-width: 50vw">
+      <q-card class="documentos-usuario-dialog" style="width: 600px; max-width: 50vw">
         <!-- HEADER -->
 
         <!-- <q-card style="border-style: none"> -->
         <CardPerfilUsuario class="q-mt-md" :usuario="props.usuario" />
         <!-- </q-card> -->
 
+        <q-banner v-if="erroCarregamento" class="bg-red-1 text-negative q-ma-md" rounded>
+          Não foi possível carregar os documentos.
+          <template #action>
+            <q-btn flat label="Tentar novamente" @click="getMotoristaDocumentos" />
+          </template>
+        </q-banner>
+
         <q-table
           class="q-mt-sm q-mb-sm"
+          :class="{ 'documentos-carregando': carregandoDocumentos }"
           bordered
           flat
           :rows="data"
           :columns="columns"
+          :loading="carregandoDocumentos"
+          no-data-label="Nenhum documento disponível."
           row-key="tipo_documento"
           hide-bottom
           hide-header
         >
+          <template #loading>
+            <q-inner-loading showing>
+              <div class="column items-center text-primary" role="status">
+                <q-spinner size="32px" />
+                <span class="q-mt-sm">Carregando documentos…</span>
+              </div>
+            </q-inner-loading>
+          </template>
           <!-- <template #top>
             <CardPerfilUsuario :usuario="props.usuario" />
           </template> -->
@@ -51,6 +69,7 @@
               <q-td :props="props" key="acoes">
                 <q-btn
                   v-if="visibilidadeBotoes(props.row.status, 'acao')"
+                  :disable="carregandoDocumentos || erroCarregamento"
                   @click="
                     () => {
                       documentoSelecionado = props.row
@@ -68,6 +87,7 @@
                 </q-btn>
                 <q-btn
                   v-if="visibilidadeBotoes(props.row.status, 'acao')"
+                  :disable="carregandoDocumentos || erroCarregamento"
                   @click="
                     () => {
                       documentoSelecionado = props.row
@@ -85,6 +105,7 @@
                 </q-btn>
                 <q-btn
                   v-if="visibilidadeBotoes(props.row.status, 'menu')"
+                  :disable="carregandoDocumentos || erroCarregamento"
                   @click.stop.prevent
                   title="Menu"
                   icon="linear_scale"
@@ -109,10 +130,14 @@
                 </q-btn>
 
                 <q-icon
-                  v-if="visibilidadeBotoes(props.row.status, 'upload')"
+                  v-if="
+                    !carregandoDocumentos &&
+                    !erroCarregamento &&
+                    visibilidadeBotoes(props.row.status, 'upload')
+                  "
                   @click="
                     () => {
-                      documentoSelecionado.value = props.row
+                      documentoSelecionado = props.row
                       dialog.envairArquivo = true
                     }
                   "
@@ -209,10 +234,11 @@ import CardPerfilDocumento from 'src/components/motorista/CardPerfilDocumento.vu
 const props = defineProps({
   modelValue: Boolean,
   usuario: [Object],
+  motoristaId: [String, Number],
 })
 
 // EMITS
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'updated'])
 
 // QUASAR
 const $q = useQuasar()
@@ -224,14 +250,10 @@ const model = computed({
 })
 
 // STATE
-const pagination = ref({
-  page: 1,
-  rowsPerPage: 5,
-})
 const documentoSelecionado = ref({
   observacao: '',
 })
-const motoristaDocumentos = ref([])
+let documentosVersion = 0
 const dialog = ref({
   confirmacao: false,
   envairArquivo: false,
@@ -239,40 +261,9 @@ const dialog = ref({
   confirmacaoReprovarDocumento: false,
 })
 
-const data = ref([
-  {
-    id: '',
-    titulo: 'CNH',
-    tipo_documento: 'cnh',
-    descricao: 'CARTEIRA NACIONAL DE HABILITAÇÃO',
-    status: '',
-    observacao: '',
-  },
-  {
-    id: '',
-    titulo: 'VEÍCULO - CRLV',
-    tipo_documento: 'crlv',
-    descricao: 'CERTIFICADO DE REGISTRO E LICENCIAMENTE DO VEÍCULO',
-    status: '',
-    observacao: '',
-  },
-  {
-    id: '',
-    titulo: 'NADA CONSTA',
-    tipo_documento: 'nada_consta',
-    descricao: 'CERTIDÃO NEGATIVA DE ANTECEDENTES CRIMINAIS',
-    status: '',
-    observacao: '',
-  },
-  {
-    id: '',
-    titulo: 'SEGURO',
-    tipo_documento: 'seguro_obrigatorio',
-    descricao: 'SEGURO OBRIGATÓRIO',
-    status: '',
-    observacao: '',
-  },
-])
+const data = ref([])
+const carregandoDocumentos = ref(false)
+const erroCarregamento = ref(false)
 
 const columns = [
   {
@@ -286,54 +277,20 @@ const columns = [
   },
 ]
 
-function dataInicial() {
-  data.value = [
-    {
-      id: '',
-      titulo: 'CNH',
-      tipo_documento: 'cnh',
-      descricao: 'CARTEIRA NACIONAL DE HABILITAÇÃO',
-      status: '',
-      observacao: '',
-    },
-    {
-      id: '',
-      titulo: 'VEÍCULO - CRLV',
-      tipo_documento: 'crlv',
-      descricao: 'CERTIFICADO DE REGISTRO E LICENCIAMENTE DO VEÍCULO',
-      status: '',
-      observacao: '',
-    },
-    {
-      id: '',
-      titulo: 'NADA CONSTA',
-      tipo_documento: 'nada_consta',
-      descricao: 'CERTIDÃO NEGATIVA DE ANTECEDENTES CRIMINAIS',
-      status: '',
-      observacao: '',
-    },
-    {
-      id: '',
-      titulo: 'SEGURO',
-      tipo_documento: 'seguro_obrigatorio',
-      descricao: 'SEGURO OBRIGATÓRIO',
-      status: '',
-      observacao: '',
-    },
-  ]
-}
-
 function onSubmit() {
   dialog.value.confirmacaoReprovarDocumento = true
 }
 
 function beforeShow() {
-  dataInicial()
+  data.value = []
   getMotoristaDocumentos()
 }
 
 function onBeforeHide() {
-  dataInicial()
+  documentosVersion++
+  data.value = []
+  carregandoDocumentos.value = false
+  erroCarregamento.value = false
 }
 
 function visibilidadeBotoes(status, tipo) {
@@ -364,15 +321,13 @@ const badgeColor = (status) => {
 
 async function mudarStatusDocumento(status) {
   try {
-    console.log('documentoSelecionado.value', documentoSelecionado.value)
     const response = await api.put(`mudar-status-documento/${documentoSelecionado.value.id}`, {
       observacao: documentoSelecionado.value.observacao,
       status: status,
     })
-    console.log(response, 'response')
     dialog.value.reprovarDocumento = false
     documentoSelecionado.value = {}
-    getMotoristaDocumentos()
+    onDocumentoUpdated()
     $q.notify({ type: 'positive', position: 'top-right', message: response.data.message })
   } catch (err) {
     console.log(err, 'err')
@@ -383,52 +338,39 @@ async function mudarStatusDocumento(status) {
   }
 }
 
-const getMotoristaDocumentos = async (payload) => {
-  if (!props?.usuario?.id) return
+async function onDocumentoUpdated() {
+  emit('updated')
+  await getMotoristaDocumentos()
+}
 
-  const { page, rowsPerPage } = payload ? props.pagination : pagination
-
+const getMotoristaDocumentos = async () => {
+  if (!props.motoristaId) return
+  const version = ++documentosVersion
+  carregandoDocumentos.value = true
+  erroCarregamento.value = false
   try {
-    const response = await api.get(`/motorista-documentos/${props.usuario?.id}`, {
-      params: {
-        page: page,
-        rowsPerPage: rowsPerPage,
-      },
+    const response = await api.get(`/motorista-documentos/${props.motoristaId}/resumo`, {
+      timeout: 15000,
     })
-    motoristaDocumentos.value = response.data.data
-    console.log(data.value, 'data')
-    console.log(motoristaDocumentos, 'motoristaDocumentos motoristaDocumentos')
-
-    // 🔥 cria um map para busca rápida por documento
-    const documentosMap = new Map(
-      motoristaDocumentos.value.map((item) => [item.tipo_documento, item])
-    )
-
-    // 🔥 faz o merge mantendo estrutura original do data
-    data.value = data.value.map((item) => {
-      const doc = documentosMap.get(item.tipo_documento)
-
-      if (doc) {
-        return {
-          ...item,
-          id: doc.id,
-          status: doc.status,
-        }
-      }
-
-      return item
-    })
-
-    const paginate = response.data
-    pagination.value.rowsNumber = paginate.total
-    pagination.value.page = paginate.current_page
-    pagination.value.rowsPerPage = paginate.per_page === paginate.total ? 0 : paginate.per_page
+    if (version !== documentosVersion) return
+    data.value = response.data.data
   } catch (error) {
-    console.error(error)
+    if (version === documentosVersion) {
+      erroCarregamento.value = true
+      $q.notify({
+        type: 'negative',
+        message: error.response?.data?.message || 'Não foi possível carregar os documentos.',
+      })
+    }
+  } finally {
+    if (version === documentosVersion) carregandoDocumentos.value = false
   }
 }
 </script>
 <style scoped>
+.documentos-carregando {
+  min-height: 120px;
+}
 .estilo-coluna {
   max-width: 200px;
   white-space: normal;
