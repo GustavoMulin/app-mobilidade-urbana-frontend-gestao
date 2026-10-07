@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { pdfFile } from '../helpers/pdf.mjs'
 import { tiposDocumento } from '../fixtures/tipos-documento.mjs'
+import { readFile } from 'node:fs/promises'
 
 const user = {
   id: 42,
@@ -31,6 +32,260 @@ const cnh = pdfFile([
   'OBSERVACOES: A, B',
 ])
 
+async function fotoCnh(page, nome, campos, inclinar = false) {
+  const base64 = await page.evaluate(
+    ({ campos, inclinar }) => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 1000
+      canvas.height = 700
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#fff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.fillStyle = '#000'
+      ctx.font = '24px Arial'
+      campos.forEach(([label, valor], index) => {
+        ctx.fillText(label, 40, 40 + index * 110)
+        ctx.fillText(valor, 40, 80 + index * 110)
+      })
+      if (!inclinar) return canvas.toDataURL('image/png').split(',')[1]
+      const foto = document.createElement('canvas')
+      foto.width = 1400
+      foto.height = 1100
+      const contexto = foto.getContext('2d')
+      contexto.fillStyle = '#343434'
+      contexto.fillRect(0, 0, foto.width, foto.height)
+      contexto.translate(700, 550)
+      contexto.rotate((3 * Math.PI) / 180)
+      contexto.drawImage(canvas, -500, -350)
+      return foto.toDataURL('image/png').split(',')[1]
+    },
+    { campos, inclinar },
+  )
+  return { name: nome, mimeType: 'image/png', buffer: Buffer.from(base64, 'base64') }
+}
+
+const camposFrente = [
+  ['NOME', 'JOAO DA SILVA'],
+  ['CPF', '529.982.247-25'],
+  ['DATA NASCIMENTO', '20/05/1990'],
+  ['NUMERO DE REGISTRO', '00024681357'],
+  ['CATEGORIA', 'AD'],
+]
+const camposVerso = [
+  ['1ª HABILITAÇÃO', '10/06/2008'],
+  ['DATA EMISSAO', '15/01/2026'],
+  ['VALIDADE', '15/01/2036'],
+  ['OBSERVACOES', 'EAR'],
+]
+
+test('CNH mantém arquivo e campos ao clicar fora ou pressionar Escape', async ({ page }) => {
+  const dialog = page.locator('.documento-dialog')
+  await dialog.locator('input[type=file]').setInputFiles(cnh)
+  await expect(dialog.getByRole('status')).toContainText('10 campos preenchidos')
+  await dialog.getByLabel('Nome na CNH', { exact: true }).fill('NOME CONFERIDO')
+  await page.mouse.click(5, 5)
+  await expect(dialog).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByLabel('Nome na CNH', { exact: true })).toHaveValue('NOME CONFERIDO')
+  await expect(dialog.getByLabel('Número de registro', { exact: true })).toHaveValue('00024681357')
+  expect(await dialog.locator('input[type=file]').evaluate((input) => input.files.length)).toBe(1)
+  await dialog.getByRole('button', { name: 'Fechar', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+})
+
+test('trocar o verso durante a leitura reutiliza a frente pronta e preserva edição manual', async ({
+  page,
+}) => {
+  test.setTimeout(120000)
+  const erros = []
+  page.on('pageerror', (error) => erros.push(error.message))
+  await page.evaluate(() => {
+    const WorkerOriginal = window.Worker
+    window.preparacoesCnh = 0
+    window.versoCnhBloqueado = false
+    window.Worker = class extends WorkerOriginal {
+      constructor(url, options) {
+        super(url, options)
+        this.preparadorCnh = String(url).includes('preparar-cnh.worker.js')
+      }
+      postMessage(message, ...args) {
+        if (this.preparadorCnh && message?.tipo === 'preparar') {
+          window.preparacoesCnh++
+          if (window.preparacoesCnh === 2) {
+            window.versoCnhBloqueado = true
+            return
+          }
+        }
+        super.postMessage(message, ...args)
+      }
+    }
+  })
+  const dialog = page.locator('.documento-dialog')
+  await dialog.getByLabel('Nome na CNH', { exact: true }).fill('NOME CONFERIDO')
+  await dialog.getByRole('button', { name: 'Fotos: frente e verso', exact: true }).click()
+  const inputs = dialog.locator('input[type=file]')
+  await inputs.nth(0).setInputFiles(await fotoCnh(page, 'frente.png', camposFrente, true))
+  await inputs.nth(1).setInputFiles(await fotoCnh(page, 'verso.png', camposVerso))
+  await expect
+    .poll(() => page.evaluate(() => window.versoCnhBloqueado), { timeout: 60000 })
+    .toBe(true)
+  const novoVerso = camposVerso.map(([label, valor]) => [
+    label,
+    label === 'VALIDADE' ? '15/01/2038' : valor,
+  ])
+  await inputs.nth(1).setInputFiles(await fotoCnh(page, 'verso-corrigido.png', novoVerso))
+  await expect(dialog.getByRole('group', { name: 'Campos da CNH' })).toHaveAttribute(
+    'aria-busy',
+    'false',
+    { timeout: 60000 },
+  )
+  await expect(dialog.getByRole('status')).toContainText('9 campos preenchidos')
+  await expect(dialog.getByLabel('Nome na CNH', { exact: true })).toHaveValue('NOME CONFERIDO')
+  await expect(dialog.getByLabel('CPF', { exact: true })).toHaveValue('529.982.247-25')
+  await expect(dialog.getByLabel('Número de registro', { exact: true })).toHaveValue('00024681357')
+  await expect(dialog.getByLabel('Validade da CNH', { exact: true })).toHaveValue('2038-01-15')
+  expect(await page.evaluate(() => window.preparacoesCnh)).toBe(3)
+  expect(erros).toEqual([])
+})
+
+test('exige frente e verso, le as duas fotos com OCR e envia uma unica CNH', async ({ page }) => {
+  test.setTimeout(120000)
+  const erros = []
+  page.on('pageerror', (erro) => erros.push(erro.message))
+  const dialog = page.locator('.documento-dialog')
+  await dialog.getByRole('button', { name: 'Fotos: frente e verso', exact: true }).click()
+  const inputs = dialog.locator('input[type=file]')
+  await expect(inputs).toHaveCount(2)
+  const frente = await fotoCnh(page, 'frente.png', camposFrente, true)
+  const verso = await fotoCnh(page, 'verso.png', camposVerso)
+  await inputs.nth(0).setInputFiles(frente)
+  await expect(dialog.getByRole('button', { name: 'Enviar', exact: true })).toBeDisabled()
+  await expect(
+    dialog.getByRole('img', { name: 'Prévia da CNH: frente', exact: true }),
+  ).toBeVisible()
+  await inputs.nth(1).setInputFiles(verso)
+  const group = dialog.getByRole('group', { name: 'Campos da CNH' })
+  await expect(group).toHaveAttribute('aria-busy', 'true')
+  await expect(group.locator('.q-spinner')).toHaveCount(1)
+  await expect(dialog.getByLabel('Nome na CNH', { exact: true })).toBeDisabled()
+  await dialog.getByRole('tab', { name: 'Verso', exact: true }).click()
+  await expect(dialog.getByRole('img', { name: 'Prévia da CNH: verso', exact: true })).toBeVisible()
+  await expect(group).toHaveAttribute('aria-busy', 'false', { timeout: 60000 })
+  await expect(dialog.getByRole('status')).toContainText(
+    '10 campos preenchidos a partir das fotos',
+    {
+      timeout: 5000,
+    },
+  )
+  await expect(group).toHaveAttribute('aria-busy', 'false')
+  await expect(dialog.getByLabel('Nome na CNH', { exact: true })).toHaveValue('JOAO DA SILVA')
+  await expect(dialog.getByLabel('CPF', { exact: true })).toHaveValue('529.982.247-25')
+  await expect(dialog.getByLabel('Número de registro', { exact: true })).toHaveValue('00024681357')
+  await expect(dialog.getByLabel('Primeira habilitação', { exact: true })).toHaveValue('2008-06-10')
+  await expect(dialog.getByLabel('Validade da CNH', { exact: true })).toHaveValue('2036-01-15')
+  await expect(dialog.getByLabel('Observações da CNH', { exact: true })).toHaveValue('EAR')
+  const enviado = page.waitForRequest(
+    (request) => request.method() === 'POST' && request.url().endsWith('/motorista-documentos'),
+  )
+  await dialog.getByRole('button', { name: 'Enviar', exact: true }).click()
+  const corpo = (await enviado).postData()
+  expect(corpo).toContain('name="arquivo"; filename="frente.png"')
+  expect(corpo).toContain('name="arquivo_verso"; filename="verso.png"')
+  expect(corpo).toContain('name="tipo_documento"\r\n\r\ncnh')
+  expect(corpo).toContain('name="cnh[ear]"\r\n\r\n1')
+  await expect(dialog).not.toBeVisible()
+  expect(erros).toEqual([])
+})
+
+test('libera preenchimento manual quando o tratamento das fotos falha', async ({ page }) => {
+  await page.route('**/ocr/opencv.js*', (route) => route.abort())
+  const dialog = page.locator('.documento-dialog')
+  await dialog.getByRole('button', { name: 'Fotos: frente e verso', exact: true }).click()
+  const inputs = dialog.locator('input[type=file]')
+  await inputs.nth(0).setInputFiles(await fotoCnh(page, 'frente.png', camposFrente))
+  await inputs.nth(1).setInputFiles(await fotoCnh(page, 'verso.png', camposVerso))
+  await expect(dialog.getByRole('status')).toContainText('Não foi possível preparar as fotos')
+  await expect(dialog.getByRole('group', { name: 'Campos da CNH' })).toHaveAttribute(
+    'aria-busy',
+    'false',
+  )
+  await expect(dialog.getByLabel('Nome na CNH', { exact: true })).toBeEnabled()
+  await expect(dialog.getByRole('button', { name: 'Enviar', exact: true })).toBeEnabled()
+})
+
+test('preenche frente e verso reais sem usar as legendas como dados', async ({ page }) => {
+  test.skip(
+    !process.env.CNH_FRENTE_PATH || !process.env.CNH_VERSO_PATH,
+    'Informe CNH_FRENTE_PATH e CNH_VERSO_PATH para validar fotos locais.',
+  )
+  test.setTimeout(120000)
+  const dialog = page.locator('.documento-dialog')
+  await dialog.getByRole('button', { name: 'Fotos: frente e verso', exact: true }).click()
+  const inputs = dialog.locator('input[type=file]')
+  await inputs.nth(0).setInputFiles(process.env.CNH_FRENTE_PATH)
+  await inputs.nth(1).setInputFiles(process.env.CNH_VERSO_PATH)
+  await expect(dialog.getByRole('group', { name: 'Campos da CNH' })).toHaveAttribute(
+    'aria-busy',
+    'false',
+    { timeout: 110000 },
+  )
+  await expect(dialog.getByRole('status')).toContainText('campos preenchidos a partir das fotos')
+  if (process.env.CNH_FOTOS_EXPECTED_COUNT) {
+    await expect(dialog.getByRole('status')).toContainText(
+      `${process.env.CNH_FOTOS_EXPECTED_COUNT} campos preenchidos`,
+    )
+  }
+  await expect(dialog.getByLabel('Nome na CNH', { exact: true })).toHaveValue(
+    /^[\p{L}][\p{L}\s.'’-]{2,254}$/u,
+  )
+  await expect(dialog.getByLabel('CPF', { exact: true })).toHaveValue(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/)
+  for (const [label, value] of Object.entries(
+    JSON.parse(process.env.CNH_FOTOS_EXPECTED_FIELDS || '{}'),
+  )) {
+    await expect(dialog.getByLabel(label, { exact: true })).toHaveValue(value)
+  }
+})
+
+test('trocar fotos por PDF cancela o OCR, limpa os dois arquivos e preserva edicao manual', async ({
+  page,
+}) => {
+  const dialog = page.locator('.documento-dialog')
+  await dialog.getByLabel('Nome na CNH', { exact: true }).fill('NOME CONFERIDO')
+  await dialog.getByRole('button', { name: 'Fotos: frente e verso', exact: true }).click()
+  let liberar
+  const aguardar = new Promise((resolve) => {
+    liberar = resolve
+  })
+  await page.route('**/ocr/por.traineddata.gz', async (route) => {
+    await aguardar
+    await route.continue().catch(() => {})
+  })
+  try {
+    const inputs = dialog.locator('input[type=file]')
+    await inputs.nth(0).setInputFiles(await fotoCnh(page, 'frente.png', camposFrente))
+    await inputs.nth(1).setInputFiles(await fotoCnh(page, 'verso.png', camposVerso))
+    await expect(dialog.getByRole('group', { name: 'Campos da CNH' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
+    await dialog.getByRole('button', { name: 'PDF da CNH', exact: true }).click()
+    await expect(dialog.locator('input[type=file]')).toHaveCount(1)
+    await expect(dialog.getByRole('group', { name: 'Campos da CNH' })).toHaveAttribute(
+      'aria-busy',
+      'false',
+    )
+    await expect(dialog.getByRole('img')).toHaveCount(0)
+    await expect(dialog.getByRole('button', { name: 'Enviar', exact: true })).toBeDisabled()
+    await expect(dialog.getByLabel('Nome na CNH', { exact: true })).toHaveValue('NOME CONFERIDO')
+  } finally {
+    liberar()
+  }
+  await dialog.locator('input[type=file]').setInputFiles(cnh)
+  await expect(dialog.getByRole('status')).toContainText('9 campos preenchidos')
+  await expect(dialog.getByLabel('Nome na CNH', { exact: true })).toHaveValue('NOME CONFERIDO')
+})
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('token', 'token-de-teste'))
   await page.route('**/*', async (route) => {
@@ -38,7 +293,7 @@ test.beforeEach(async ({ page }) => {
     const headers = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
     }
     if (request.method() === 'OPTIONS') {
       await route.fulfill({ status: 204, headers })
@@ -105,6 +360,150 @@ async function reabrirDocumentos(page) {
     .filter({ has: page.locator('.q-icon', { hasText: /^list_alt$/ }) })
     .click()
 }
+
+async function mockDocumentoEnviado(page, documento) {
+  await page.route('**/motorista-documentos/7/resumo', (route) =>
+    route.fulfill({
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json: {
+        data: tiposDocumento.map((tipo) => ({
+          ...tipo,
+          ...(tipo.possui_dados_cnh ? { id: 100, ...documento } : {}),
+        })),
+      },
+    }),
+  )
+  await reabrirDocumentos(page)
+  return page.locator('.documentos-usuario-dialog tr').filter({ hasText: 'CARTEIRA NACIONAL' })
+}
+
+for (const status of ['em_analise', 'aprovado', 'reprovado']) {
+  test(`exibe ações conforme o status ${status} e mantém acesso ao anexo`, async ({ page }) => {
+    const url = 'http://localhost/motorista_documentos_anexos/cnh.pdf'
+    const row = await mockDocumentoEnviado(page, { status, url })
+    await expect(row.getByLabel('Aprovar documento', { exact: true })).toHaveCount(
+      status === 'aprovado' ? 0 : 1,
+    )
+    await expect(row.getByLabel('Reprovar documento', { exact: true })).toHaveCount(
+      status === 'reprovado' ? 0 : 1,
+    )
+    await expect(row.getByLabel('Visualizar documento', { exact: true })).toHaveAttribute(
+      'href',
+      url,
+    )
+    await expect(row.getByLabel('Visualizar documento', { exact: true })).toHaveAttribute(
+      'target',
+      '_blank',
+    )
+    await expect(row.getByLabel('Baixar documento', { exact: true })).toBeEnabled()
+    await expect(
+      page
+        .locator('.documentos-usuario-dialog tr')
+        .filter({ hasText: 'SEGURO' })
+        .getByLabel('Baixar documento', { exact: true }),
+    ).toHaveCount(0)
+  })
+}
+
+test('aprova um documento reprovado e baixa o PDF com nome e conteúdo originais', async ({
+  page,
+}) => {
+  let status = 'reprovado'
+  const url = 'http://localhost/motorista_documentos_anexos/cnh.pdf'
+  await page.route('**/motorista-documentos/7/resumo', (route) =>
+    route.fulfill({
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json: {
+        data: [
+          {
+            ...tiposDocumento[0],
+            id: 100,
+            status,
+            url,
+            name: 'minha-cnh.pdf',
+            mime_type: 'application/pdf',
+          },
+        ],
+      },
+    }),
+  )
+  await page.route('**/mudar-status-documento/100', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback()
+    expect(route.request().postDataJSON()).toEqual({ status: 'aprovado' })
+    status = 'aprovado'
+    return route.fulfill({
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json: { message: 'Documento aprovado' },
+    })
+  })
+  await page.route('**/motorista-documentos/100/download?lado=frente', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback()
+    expect(route.request().headers().authorization).toBe('Bearer token-de-teste')
+    return route.fulfill({
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      contentType: 'application/pdf',
+      body: cnh.buffer,
+    })
+  })
+  await reabrirDocumentos(page)
+  const documentos = page.locator('.documentos-usuario-dialog')
+  await documentos.getByLabel('Aprovar documento', { exact: true }).click()
+  await page
+    .locator('.q-dialog .q-card')
+    .filter({ hasText: 'Deseja realmente aprovar o documento?' })
+    .getByRole('button', { name: 'Sim', exact: true })
+    .click()
+  await expect(documentos.getByText('aprovado', { exact: true })).toBeVisible()
+  const downloadPromise = page.waitForEvent('download')
+  await documentos.getByLabel('Baixar documento', { exact: true }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe('minha-cnh.pdf')
+  expect(await download.failure()).toBeNull()
+  expect(await readFile(await download.path())).toEqual(cnh.buffer)
+})
+
+test('permite visualizar e baixar separadamente a frente e o verso da CNH', async ({ page }) => {
+  const fotos = {
+    frente: await fotoCnh(page, 'frente.png', camposFrente),
+    verso: await fotoCnh(page, 'verso.png', camposVerso),
+  }
+  const frenteUrl = 'http://localhost/motorista_documentos_anexos/frente.png'
+  const versoUrl = 'http://localhost/motorista_documentos_anexos/verso.png'
+  const row = await mockDocumentoEnviado(page, {
+    status: 'reprovado',
+    url: frenteUrl,
+    name: 'frente.png',
+    mime_type: 'image/png',
+    verso: { url: versoUrl, name: 'verso.png', mime_type: 'image/png' },
+  })
+  await row.getByLabel('Visualizar documento', { exact: true }).click()
+  await expect(page.getByRole('link', { name: 'Visualizar frente', exact: true })).toHaveAttribute(
+    'href',
+    frenteUrl,
+  )
+  await expect(page.getByRole('link', { name: 'Visualizar verso', exact: true })).toHaveAttribute(
+    'href',
+    versoUrl,
+  )
+  await page.keyboard.press('Escape')
+  await page.route('**/motorista-documentos/100/download?*', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback()
+    const lado = new URL(route.request().url()).searchParams.get('lado')
+    return route.fulfill({
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      contentType: 'image/png',
+      body: fotos[lado].buffer,
+    })
+  })
+  for (const lado of ['frente', 'verso']) {
+    await row.getByLabel('Baixar documento', { exact: true }).click()
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByText(`Baixar ${lado}`, { exact: true }).click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toBe(`${lado}.png`)
+    expect(await readFile(await download.path())).toEqual(fotos[lado].buffer)
+  }
+})
 
 test('usa os títulos e a ordem do catálogo da API e aguarda seu carregamento', async ({ page }) => {
   const consultas = []
@@ -209,7 +608,8 @@ test('reprova um anexo sem solicitar ou enviar observacao', async ({ page }) => 
     .click()
   await expect(page.getByLabel('Observação', { exact: true })).toHaveCount(0)
   const enviado = page.waitForRequest(
-    (request) => request.method() === 'PUT' && request.url().endsWith('/mudar-status-documento/100'),
+    (request) =>
+      request.method() === 'PUT' && request.url().endsWith('/mudar-status-documento/100'),
   )
   await page
     .locator('.q-dialog .q-card')

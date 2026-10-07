@@ -1,4 +1,4 @@
-import { regioesCnh, resolverCamposCnh } from './cnh.js'
+import { extrairCamposCnh, regioesCnh, resolverCamposCnh } from './cnh.js'
 
 function abortable(operation, signal) {
   signal.throwIfAborted()
@@ -42,17 +42,17 @@ export async function criarLeitorCnh(signal, onProgress) {
     throw error
   }
   return {
-    async ler(canvas) {
+    async ler(canvas, { foto = false, campos } = {}) {
       const original = document.createElement('canvas')
       original.width = canvas.width
       original.height = canvas.height
       original.getContext('2d').drawImage(canvas, 0, 0)
       try {
-        prepararImagem(canvas)
+        if (!foto) prepararImagem(canvas)
         const { data } = await abortable(
           worker.recognize(
             canvas,
-            { tessedit_pageseg_mode: PSM.SPARSE_TEXT },
+            { tessedit_pageseg_mode: PSM.SPARSE_TEXT, tessedit_char_whitelist: '' },
             { blocks: true, text: true },
           ),
           signal,
@@ -71,7 +71,26 @@ export async function criarLeitorCnh(signal, onProgress) {
             confidence: word.confidence,
           }))
         const candidates = new Map()
-        for (const region of regioesCnh(items, canvas.width, canvas.height)) {
+        if (foto) {
+          const leitura = extrairCamposCnh(
+            [
+              items.filter(
+                (item) =>
+                  item.confidence >= 70 &&
+                  item.height <= Math.max(40, Math.max(canvas.width, canvas.height) * 0.03),
+              ),
+            ],
+            { foto },
+          )
+          for (const [name, value] of Object.entries(leitura)) {
+            if (campos && !campos.includes(name)) continue
+            if (['nome', 'observacao', 'ear'].includes(name)) continue
+            if (name === 'numero_registro' && !/^\d{11}$/.test(value)) continue
+            candidates.set(name, new Set([value]))
+          }
+        }
+        for (const region of regioesCnh(items, canvas.width, canvas.height, { foto })) {
+          if (campos && !campos.includes(region.name)) continue
           signal.throwIfAborted()
           const cropped = recortarValor(original, region)
           let value
@@ -91,11 +110,34 @@ export async function criarLeitorCnh(signal, onProgress) {
                         region.name === 'observacao' ? PSM.SINGLE_BLOCK : PSM.SINGLE_LINE,
                       tessedit_char_whitelist: caracteresCampo(region.name),
                     },
-                    { text: true },
+                    { text: true, blocks: foto },
                   ),
                   signal,
                 )
-                value = region.parse(recognition.data.text.trim())
+                let text = recognition.data.text.trim()
+                if (foto && ['nome', 'observacao'].includes(region.name)) {
+                  const words = (recognition.data.blocks || []).flatMap((block) =>
+                    block.paragraphs.flatMap((paragraph) =>
+                      paragraph.lines.flatMap((line) => line.words),
+                    ),
+                  )
+                  text = words
+                    .filter(
+                      (word) =>
+                        word.confidence >= 70 &&
+                        (region.name !== 'observacao' || /^[A-Z,.;/-]+$/.test(word.text)),
+                    )
+                    .map((word) => word.text)
+                    .join(' ')
+                  if (
+                    region.name === 'nome' &&
+                    words.some((word) => /\p{L}/u.test(word.text) && word.confidence < 70)
+                  )
+                    text = ''
+                } else if (foto && recognition.data.confidence < 70) text = ''
+                value = region.parse(text)
+                if (foto && region.name === 'numero_registro' && !/^\d{11}$/.test(value || ''))
+                  value = undefined
                 if (value !== undefined) break
               } finally {
                 resized.width = resized.height = 0

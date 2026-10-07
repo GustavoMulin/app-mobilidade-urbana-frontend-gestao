@@ -1,8 +1,98 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { extrairCamposCnh, regioesCnh } from '../src/utils/cnh.js'
+import { combinarLeiturasCnh, extrairCnhImagens } from '../src/utils/extrairCnhImagens.js'
 
 const item = (text, x, y, height = 10) => ({ text, x, y, height, width: text.length * 5 })
+
+test('reúne frente e verso e deriva EAR das observações do verso', () => {
+  assert.deepEqual(
+    combinarLeiturasCnh([
+      { nome: 'MARIA DE SOUZA', numero_registro: '00123456789' },
+      { numero_registro: '00123456789', observacao: 'EAR', cnh_expiracao: '2030-01-15' },
+    ]),
+    {
+      dados: {
+        nome: 'MARIA DE SOUZA',
+        numero_registro: '00123456789',
+        observacao: 'EAR',
+        cnh_expiracao: '2030-01-15',
+        ear: true,
+      },
+      conflitos: [],
+    },
+  )
+})
+
+test('não escolhe silenciosamente registro, data ou EAR divergentes entre fotos', () => {
+  const resultado = combinarLeiturasCnh([
+    { numero_registro: '00123456789', cnh_expiracao: '2030-01-15', ear: false },
+    { numero_registro: '00987654321', cnh_expiracao: '2031-01-15', observacao: 'EAR' },
+  ])
+  assert.deepEqual(resultado.dados, { observacao: 'EAR' })
+  assert.deepEqual(resultado.conflitos, ['numero_registro', 'cnh_expiracao', 'ear'])
+})
+
+test('reutiliza as fotos em cache sem OCR e conserva os conflitos entre variantes e lados', async () => {
+  const frente = { name: 'frente.png' }
+  const verso = { name: 'verso.png' }
+  const leiturasFrente = Object.freeze([
+    Object.freeze({
+      nome: 'MARIA DE SOUZA',
+      numero_registro: '00123456789',
+      cnh_expiracao: '2030-01-15',
+      ear: false,
+    }),
+    Object.freeze({
+      nome: 'MARIA DE SOUZA',
+      numero_registro: '00987654321',
+      cnh_expiracao: '2031-01-15',
+      observacao: 'EAR',
+    }),
+  ])
+  const leiturasVerso = Object.freeze([
+    Object.freeze({ numero_registro: '00123456789', cpf: '01149897295', ear: true }),
+  ])
+  const cache = new WeakMap([
+    [frente, leiturasFrente],
+    [verso, leiturasVerso],
+  ])
+  const esperado = {
+    dados: { nome: 'MARIA DE SOUZA', observacao: 'EAR', cpf: '01149897295' },
+    conflitos: ['numero_registro', 'cnh_expiracao', 'ear'],
+    temTexto: false,
+    usouOcr: true,
+  }
+  // Node has no document or browser workers: cached files must bypass their initialization.
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    assert.deepEqual(
+      await extrairCnhImagens([frente, verso], new AbortController().signal, undefined, { cache }),
+      esperado,
+    )
+  }
+  assert.equal(cache.get(frente), leiturasFrente)
+  assert.equal(cache.get(verso), leiturasVerso)
+})
+
+test('respeita o cancelamento mesmo quando ambas as fotos já estão no cache', async () => {
+  const frente = { name: 'frente.png' }
+  const verso = { name: 'verso.png' }
+  const leiturasFrente = [{ nome: 'MARIA DE SOUZA' }]
+  const leiturasVerso = [{ observacao: 'EAR' }]
+  const cache = new WeakMap([
+    [frente, leiturasFrente],
+    [verso, leiturasVerso],
+  ])
+  const controller = new AbortController()
+  const motivo = new Error('Leitura cancelada')
+  controller.abort(motivo)
+  await assert.rejects(
+    extrairCnhImagens([frente, verso], controller.signal, undefined, { cache }),
+    (erro) => erro === motivo,
+  )
+  assert.equal(cache.get(frente), leiturasFrente)
+  assert.equal(cache.get(verso), leiturasVerso)
+})
 
 test('CNH com rótulos e valores em várias colunas mantém cada data no campo correto', () => {
   const page = [
@@ -230,4 +320,31 @@ test('ruído alto da fotografia não separa DATA de EMISSÃO e legenda traduzida
     ['data_emissao'],
   )
   assert.equal(regions[0].labelLeft, 100)
+})
+
+test('foto reconhece ordinal lido como 13 e rótulo abreviado CAT sem alterar o PDF', () => {
+  const words = [
+    ocrWord('13', 100, 50, 20, 18),
+    ocrWord('HABILITAÇÃO', 125, 50, 140, 18),
+    ocrWord('CAT.', 400, 50, 45, 18),
+  ]
+  assert.deepEqual(
+    regioesCnh(words, 1000, 1200, { foto: true }).map((region) => region.name),
+    ['cnh_categoria', 'primeira_habilitacao'],
+  )
+  assert.deepEqual(regioesCnh(words, 1000, 1200), [])
+})
+
+test('legenda do verso em várias linhas não preenche campos da fotografia', () => {
+  const words = [
+    ocrWord('NOME', 100, 400, 60),
+    ocrWord('Surname', 170, 425, 90),
+    ocrWord('First', 100, 450, 60),
+    ocrWord('CATEGORIA', 100, 480, 120),
+    ocrWord('B', 100, 510, 15),
+    ocrWord('OBSERVAÇÕES', 100, 550, 140),
+    ocrWord('EAR', 100, 580, 45),
+  ]
+  assert.deepEqual(regioesCnh(words, 1000, 1200, { foto: true }), [])
+  assert.deepEqual(extrairCamposCnh([words], { foto: true }), {})
 })

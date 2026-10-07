@@ -67,7 +67,7 @@ const fields = [
   {
     name: 'data_nascimento',
     label:
-      /\bDATA(?:\s+DE)?\s+NASCIMENTO\b|\bDATA[,\s]+(?:LOCAL(?:\s+E\s+UF)?|E\s+LOCAL(?:\s+E\s+UF)?)\s+DE\s+NASCIMENTO\b/g,
+      /\bDATA(?:\s+DE)?\s+NASCIMENTO\b|\bDATA[.,\s]+(?:LOCAL(?:\s+E\s+UF)?|E\s+LOCAL(?:\s+E\s+UF)?)\s+DE\s+NASCIMENTO\b/g,
     parse: dateValue,
   },
   {
@@ -130,11 +130,24 @@ function position(row, index) {
   return span.x + (span.width * offset) / span.text.length
 }
 
-function findLabels(rows) {
+function findLabels(rows, { foto = false } = {}) {
   return rows.flatMap((row, rowIndex) =>
     fields.flatMap((field) => {
-      const text = normalize(row.text)
-      return [...text.matchAll(field.label)].map((match) => {
+      let text = normalize(row.text)
+      if (foto) text = text.replace(/\b1[23](?=\s+HABILITACAO\b)/g, '1A')
+      const pattern =
+        foto && field.name === 'cnh_categoria'
+          ? /\bCAT\.?(?:\s*HAB\.?)?\b|\bCATEGORIA\b/g
+          : foto &&
+              field.name === 'nome' &&
+              rows.some(
+                (other) =>
+                  /\bSOBRENOME\b/.test(normalize(other.text)) &&
+                  Math.abs(other.y - row.y) <= Math.max(other.height, row.height) * 2,
+              )
+            ? /\bN[O0][MNV][E3](?:\s+E\s+SOBRENOME)?\b/g
+            : field.label
+      return [...text.matchAll(pattern)].map((match) => {
         const prefix = text
           .slice(0, match.index)
           .match(/(?:^|(?<=\s))[1-9][A-E]?(?:\s+E\s+[1-9])?\s+$/)
@@ -161,13 +174,33 @@ function findLabels(rows) {
   )
 }
 
-// Read the value area separately so the photograph and box borders cannot join the text.
-export function regioesCnh(items, width, height) {
-  const rows = buildRows(
-    items.filter((item) => item.height >= 10 && item.height <= 40 && item.confidence >= 35),
+function semLegendasTraduzidas(items) {
+  const marcadores = items.filter((item) =>
+    /^(?:SURNAME|FIRST|BIRTH|FECHA|NATIONALITY|ISSUANCE|ISSUING|DDMMYYYY)$/.test(
+      normalize(item.text).replace(/[^A-Z]/g, ''),
+    ),
   )
-  const labels = findLabels(rows).filter(
-    (label) => !/\b(?:SURNAME|FIRST|LICENSE|BIRTH|FECHA|DD\/MM)\b/i.test(rows[label.rowIndex].text),
+  if (new Set(marcadores.map((item) => normalize(item.text))).size < 2) return items
+  const inicio = Math.min(...marcadores.map((item) => item.y - item.height * 3))
+  return items.filter((item) => item.y < inicio)
+}
+
+// Read the value area separately so the photograph and box borders cannot join the text.
+export function regioesCnh(items, width, height, { foto = false } = {}) {
+  if (foto) items = semLegendasTraduzidas(items)
+  const rows = buildRows(
+    items.filter(
+      (item) =>
+        item.height >= (foto ? 6 : 10) &&
+        item.height <= (foto ? Math.max(40, Math.max(width, height) * 0.03) : 40) &&
+        item.confidence >= 35,
+    ),
+  )
+  const labels = findLabels(rows, { foto }).filter(
+    (label) =>
+      !/\b(?:SURNAME|FIRST|LICENSE|BIRTH|FECHA|DD\/MM|DDMMYYYY|IDENTITY|NATIONALITY|OBSERVATIONS|EXPIRATION|ISSUING)\b/i.test(
+        rows[label.rowIndex].text,
+      ),
   )
   return labels
     .filter((label) => label.parse)
@@ -175,7 +208,10 @@ export function regioesCnh(items, width, height) {
       const next = labels
         .filter((other) => other.rowIndex === label.rowIndex && other.start >= label.end)
         .sort((a, b) => a.x - b.x)[0]
-      const left = Math.max(0, Math.floor(label.x - label.height * 2.5))
+      const left = Math.max(
+        0,
+        Math.floor(label.x - label.height * (foto && label.name === 'nome' ? 4.5 : 2.5)),
+      )
       const top = Math.max(0, Math.ceil(label.y + label.height * 1.3))
       const right = Math.min(
         width,
@@ -188,7 +224,9 @@ export function regioesCnh(items, width, height) {
         .sort((a, b) => a.y - b.y)[0]
       const bottom = Math.min(
         height,
-        Math.floor(label.y + label.height * (label.name === 'observacao' ? 12 : 3.8)),
+        Math.floor(
+          label.y + label.height * (label.name === 'observacao' ? (foto ? 4.5 : 12) : 3.8),
+        ),
         label.name === 'observacao' && below ? below.y - label.height * 0.5 : height,
       )
       return {
@@ -206,11 +244,17 @@ export function regioesCnh(items, width, height) {
 }
 
 /** Recognizes values near CNH labels; items use coordinates in the visible page. */
-export function extrairCamposCnh(pages) {
+export function extrairCamposCnh(pages, { foto = false } = {}) {
   const candidates = new Map()
   for (const items of pages) {
-    const rows = buildRows(items)
-    const labels = findLabels(rows)
+    const rows = buildRows(foto ? semLegendasTraduzidas(items) : items)
+    const labels = findLabels(rows, { foto }).filter(
+      (label) =>
+        !foto ||
+        !/\b(?:SURNAME|FIRST|LICENSE|BIRTH|FECHA|DD\/MM|DDMMYYYY|IDENTITY|NATIONALITY|OBSERVATIONS|EXPIRATION|ISSUING)\b/i.test(
+          rows[label.rowIndex].text,
+        ),
+    )
     for (const label of labels.filter((label) => label.parse)) {
       const row = rows[label.rowIndex]
       const next = labels

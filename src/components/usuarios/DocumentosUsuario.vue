@@ -68,7 +68,7 @@
               </q-td>
               <q-td :props="props" key="acoes">
                 <q-btn
-                  v-if="visibilidadeBotoes(props.row.status, 'acao')"
+                  v-if="visibilidadeBotoes(props.row.status, 'reprovar')"
                   :disable="carregandoDocumentos || erroCarregamento"
                   @click="
                     () => {
@@ -80,13 +80,14 @@
                   text-color="red"
                   round
                   icon="close"
+                  aria-label="Reprovar documento"
                 >
                   <q-tooltip transition-show="flip-right" transition-hide="flip-left">
                     reprovar documento
                   </q-tooltip>
                 </q-btn>
                 <q-btn
-                  v-if="visibilidadeBotoes(props.row.status, 'acao')"
+                  v-if="visibilidadeBotoes(props.row.status, 'aprovar')"
                   :disable="carregandoDocumentos || erroCarregamento"
                   @click="
                     () => {
@@ -98,32 +99,63 @@
                   text-color="green"
                   round
                   icon="done"
+                  aria-label="Aprovar documento"
                 >
                   <q-tooltip transition-show="flip-right" transition-hide="flip-left">
                     aprovar documento
                   </q-tooltip>
                 </q-btn>
                 <q-btn
-                  v-if="visibilidadeBotoes(props.row.status, 'menu')"
+                  v-if="props.row.url"
                   :disable="carregandoDocumentos || erroCarregamento"
-                  @click.stop.prevent
-                  title="Menu"
-                  icon="linear_scale"
+                  :href="props.row.verso?.url ? undefined : props.row.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Visualizar documento"
+                  icon="visibility"
                   dense
                   flat
                   round
                 >
-                  <q-menu>
+                  <q-tooltip>Visualizar documento</q-tooltip>
+                  <q-menu v-if="props.row.verso?.url">
                     <q-list style="min-width: 100px">
-                      <q-item clickable v-close-popup>
-                        <q-item-section>Reprovar documento</q-item-section>
+                      <q-item
+                        v-for="anexo in anexosDocumento(props.row)"
+                        :key="anexo.lado"
+                        clickable
+                        v-close-popup
+                        :href="anexo.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <q-item-section>Visualizar {{ anexo.label }}</q-item-section>
                       </q-item>
-                      <q-item clickable v-close-popup>
-                        <q-item-section>Excluir documento</q-item-section>
-                      </q-item>
-
-                      <q-item clickable v-close-popup>
-                        <q-item-section>Baixar documento</q-item-section>
+                    </q-list>
+                  </q-menu>
+                </q-btn>
+                <q-btn
+                  v-if="props.row.url"
+                  :disable="carregandoDocumentos || erroCarregamento"
+                  :loading="baixandoDocumento === props.row.id"
+                  @click="!props.row.verso?.url && baixarDocumento(props.row)"
+                  aria-label="Baixar documento"
+                  icon="download"
+                  dense
+                  flat
+                  round
+                >
+                  <q-tooltip>Baixar documento</q-tooltip>
+                  <q-menu v-if="props.row.verso?.url">
+                    <q-list style="min-width: 100px">
+                      <q-item
+                        v-for="anexo in anexosDocumento(props.row)"
+                        :key="anexo.lado"
+                        clickable
+                        v-close-popup
+                        @click="baixarDocumento(props.row, anexo.lado)"
+                      >
+                        <q-item-section>Baixar {{ anexo.label }}</q-item-section>
                       </q-item>
                     </q-list>
                   </q-menu>
@@ -154,28 +186,6 @@
                     enviar arquivo
                   </q-tooltip>
                 </q-icon>
-
-                <!-- <q-icon
-                  v-if="visibilidadeBotoes(props.row.status, 'download')"
-                  @click="
-                    () => {
-                      documentoSelecionado.value = props.row
-                      dialog.envairArquivo = true
-                    }
-                  "
-                  class="q-ml-lg cursor-pointer"
-                  color="grey"
-                  size="sm"
-                  name="download"
-                >
-                  <q-tooltip
-                    v-if="!props.row.id"
-                    transition-show="flip-right"
-                    transition-hide="flip-left"
-                  >
-                    baixar arquivo
-                  </q-tooltip>
-                </q-icon> -->
               </q-td>
             </q-tr>
           </template>
@@ -196,7 +206,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { useQuasar } from 'quasar'
+import { exportFile, useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import CardPerfilUsuario from 'src/components/usuarios/CardPerfilUsuario.vue'
 import JanelaConfirmacao from 'src/components/JanelaConfirmacao.vue'
@@ -233,6 +243,7 @@ const dialog = ref({
 const data = ref([])
 const carregandoDocumentos = ref(false)
 const erroCarregamento = ref(false)
+const baixandoDocumento = ref(null)
 
 const columns = [
   {
@@ -260,20 +271,48 @@ function onBeforeHide() {
 
 function visibilidadeBotoes(status, tipo) {
   switch (tipo) {
-    case 'acao':
-      return status === 'em_analise'
-
-    case 'menu':
-      return status === 'aprovado' || status === 'reprovado' || status === 'em_analise'
-
-    case 'download':
-      return status === 'aprovado' || status === 'reprovado' || status === 'em_analise'
+    case 'reprovar':
+      return status === 'em_analise' || status === 'aprovado'
+    case 'aprovar':
+      return status === 'em_analise' || status === 'reprovado'
 
     case 'upload':
       return !status
 
     default:
       return false
+  }
+}
+
+function anexosDocumento(documento) {
+  const anexos = [{ ...documento, lado: 'frente', label: 'frente' }]
+  if (documento.verso?.url) anexos.push({ ...documento.verso, lado: 'verso', label: 'verso' })
+  return anexos
+}
+
+async function baixarDocumento(documento, lado = 'frente') {
+  if (baixandoDocumento.value !== null) return
+  const anexo = lado === 'verso' ? documento.verso : documento
+  if (!anexo?.url || !documento.id) return
+  baixandoDocumento.value = documento.id
+  try {
+    const response = await api.get(`/motorista-documentos/${documento.id}/download`, {
+      params: { lado },
+      responseType: 'blob',
+      timeout: 30000,
+    })
+    const nome = anexo.name || `${documento.tipo_documento}-${lado}.${anexo.type || 'pdf'}`
+    const resultado = exportFile(nome, response.data, {
+      mimeType: anexo.mime_type || response.data.type,
+    })
+    if (resultado !== true) throw resultado
+  } catch {
+    $q.notify({
+      type: 'negative',
+      message: 'Não foi possível baixar o documento. Tente novamente.',
+    })
+  } finally {
+    baixandoDocumento.value = null
   }
 }
 
