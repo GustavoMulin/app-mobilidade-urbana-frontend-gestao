@@ -62,7 +62,7 @@ test.beforeEach(async ({ page }) => {
     else if (endpoint === '/motorista-documentos/tipos') data = { data: tiposDocumento }
     else if (endpoint === '/motorista-documentos/7/resumo')
       data = {
-        data: tiposDocumento.map((tipo) => ({ ...tipo, id: null, status: null, observacao: null })),
+        data: tiposDocumento.map((tipo) => ({ ...tipo, id: null, status: null, url: null })),
       }
     else if (endpoint === '/motorista-documentos' && request.method() === 'POST') {
       data = {
@@ -165,6 +165,59 @@ test('permite tentar novamente quando o catálogo de documentos falha', async ({
     tiposDocumento.map((tipo) => tipo.titulo),
   )
   await expect(documentos.locator('.q-banner')).toHaveCount(0)
+})
+
+test('reprova um anexo sem solicitar ou enviar observacao', async ({ page }) => {
+  let reprovado = false
+  await page.route('**/motorista-documentos/7/resumo', async (route) => {
+    await route.fulfill({
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json: {
+        data: tiposDocumento.map((tipo) => ({
+          ...tipo,
+          id: tipo.possui_dados_cnh ? 100 : null,
+          status: tipo.possui_dados_cnh ? (reprovado ? 'reprovado' : 'em_analise') : null,
+          url: null,
+        })),
+      },
+    })
+  })
+  await page.route('**/mudar-status-documento/100', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': '*',
+          'Access-Control-Allow-Methods': 'PUT,OPTIONS',
+        },
+      })
+      return
+    }
+    expect(route.request().postDataJSON()).toEqual({ status: 'reprovado' })
+    reprovado = true
+    await route.fulfill({
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json: { message: 'Status do documento alterado com sucesso' },
+    })
+  })
+  await reabrirDocumentos(page)
+  const documentos = page.locator('.documentos-usuario-dialog')
+  await documentos
+    .locator('button')
+    .filter({ has: page.locator('.q-icon', { hasText: /^close$/ }) })
+    .click()
+  await expect(page.getByLabel('Observação', { exact: true })).toHaveCount(0)
+  const enviado = page.waitForRequest(
+    (request) => request.method() === 'PUT' && request.url().endsWith('/mudar-status-documento/100'),
+  )
+  await page
+    .locator('.q-dialog .q-card')
+    .filter({ hasText: 'Deseja realmente reprovar o documento?' })
+    .getByRole('button', { name: 'Sim', exact: true })
+    .click()
+  expect((await enviado).postDataJSON()).toEqual({ status: 'reprovado' })
+  await expect(documentos.getByText('reprovado', { exact: true })).toBeVisible()
 })
 
 for (const tipo of tiposDocumento.filter((item) => !item.possui_dados_cnh)) {

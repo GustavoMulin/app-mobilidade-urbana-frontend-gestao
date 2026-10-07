@@ -73,7 +73,7 @@
                   @click="
                     () => {
                       documentoSelecionado = props.row
-                      dialog.reprovarDocumento = true
+                      dialog.confirmacaoReprovarDocumento = true
                     }
                   "
                   flat
@@ -182,41 +182,14 @@
         </q-table>
       </q-card>
     </q-dialog>
-    <q-dialog v-model="dialog.reprovarDocumento">
-      <q-card style="width: 700px; max-width: 80vw">
-        <q-card-section>
-          <CardPerfilDocumento :documento="documentoSelecionado" />
-          <q-form @submit.prevent="onSubmit">
-            <q-input
-              label="Observação"
-              dense
-              outlined
-              autogrow
-              class="full-width q-px-md q-mt-md q-mb-md"
-              v-model="documentoSelecionado.observacao"
-              type="textarea"
-              bottom-slots
-              counter
-              maxlength="2000"
-              :rules="[(val) => val.length >= 3 || 'Campo obrigatório']"
-            >
-              <template v-slot:hint> Caracteres </template>
-            </q-input>
-            <div class="q-mt-md" align="center">
-              <q-btn type="submit" icon="close" color="red" label="REPROVAR DOCUMENTO" />
-            </div>
-          </q-form>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
     <JanelaConfirmacao v-model="dialog.confirmacao" @confirm="mudarStatusDocumento('aprovado')">
-      Deseja realmente aprovar o ducmento?
+      Deseja realmente aprovar o documento?
     </JanelaConfirmacao>
     <JanelaConfirmacao
       v-model="dialog.confirmacaoReprovarDocumento"
       @confirm="mudarStatusDocumento('reprovado')"
     >
-      Deseja realmente reprovar o ducmento?
+      Deseja realmente reprovar o documento?
     </JanelaConfirmacao>
   </section>
 </template>
@@ -228,7 +201,6 @@ import { api } from 'boot/axios'
 import CardPerfilUsuario from 'src/components/usuarios/CardPerfilUsuario.vue'
 import JanelaConfirmacao from 'src/components/JanelaConfirmacao.vue'
 import SubirArquivo from 'src/components/motorista/SubirArquivo.vue'
-import CardPerfilDocumento from 'src/components/motorista/CardPerfilDocumento.vue'
 
 // PROPS
 const props = defineProps({
@@ -250,14 +222,11 @@ const model = computed({
 })
 
 // STATE
-const documentoSelecionado = ref({
-  observacao: '',
-})
+const documentoSelecionado = ref({})
 let documentosVersion = 0
 const dialog = ref({
   confirmacao: false,
   envairArquivo: false,
-  reprovarDocumento: false,
   confirmacaoReprovarDocumento: false,
 })
 
@@ -276,10 +245,6 @@ const columns = [
     label: 'Ações',
   },
 ]
-
-function onSubmit() {
-  dialog.value.confirmacaoReprovarDocumento = true
-}
 
 function beforeShow() {
   data.value = []
@@ -322,10 +287,8 @@ const badgeColor = (status) => {
 async function mudarStatusDocumento(status) {
   try {
     const response = await api.put(`mudar-status-documento/${documentoSelecionado.value.id}`, {
-      observacao: documentoSelecionado.value.observacao,
       status: status,
     })
-    dialog.value.reprovarDocumento = false
     documentoSelecionado.value = {}
     onDocumentoUpdated()
     $q.notify({ type: 'positive', position: 'top-right', message: response.data.message })
