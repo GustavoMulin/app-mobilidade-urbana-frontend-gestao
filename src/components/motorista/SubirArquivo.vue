@@ -8,7 +8,15 @@
     <q-card class="documento-dialog">
       <q-toolbar>
         <q-toolbar-title class="text-weight-bold">
-          {{ isCnh ? 'Enviar CNH' : 'Enviar documento' }}
+          {{
+            isReenvio
+              ? isCnh
+                ? 'Reenviar CNH'
+                : 'Reenviar documento'
+              : isCnh
+                ? 'Enviar CNH'
+                : 'Enviar documento'
+          }}
         </q-toolbar-title>
         <q-btn
           flat
@@ -32,42 +40,80 @@
                   : documento?.descricao
               }}
             </p>
+            <p v-if="isReenvio" class="text-caption text-grey-7">
+              Confira os dados e remova o anexo atual para selecionar um novo arquivo.
+            </p>
             <q-btn-toggle
               v-if="isCnh"
               v-model="formatoCnh"
               class="q-mb-md"
               :options="[
-                { label: 'PDF da CNH', value: 'pdf' },
-                { label: 'Fotos: frente e verso', value: 'fotos' },
+                {
+                  label: 'PDF da CNH',
+                  value: 'pdf',
+                  disable: anexoSalvoAtivo && formatoCnhSalvo === 'fotos',
+                },
+                {
+                  label: 'Fotos: frente e verso',
+                  value: 'fotos',
+                  disable: anexoSalvoAtivo && formatoCnhSalvo === 'pdf',
+                },
               ]"
               toggle-color="primary"
               no-caps
-              :disable="enviando"
+              :disable="enviando || carregandoCampos"
               aria-label="Formato de envio da CNH"
             />
             <q-file
               v-model="file"
               outlined
               clearable
-              :label="fotosCnh ? 'Frente da CNH' : 'Selecione o arquivo'"
+              :label="
+                fotosCnh
+                  ? 'Frente da CNH'
+                  : anexoSalvoAtivo
+                    ? 'Arquivo atual'
+                    : 'Selecione o arquivo'
+              "
+              :readonly="anexoSalvoAtivo"
+              :stack-label="anexoSalvoAtivo"
+              :display-value="anexoSalvoAtivo ? nomeAnexoSalvo(documento) : undefined"
               :accept="
                 isCnh ? (fotosCnh ? formatosImagem : '.pdf,application/pdf') : formatosArquivo
               "
               :max-file-size="2097152"
-              :disable="enviando"
-              :rules="[(val) => !!val || 'Selecione um arquivo']"
+              :disable="enviando || carregandoCampos"
+              :rules="anexoSalvoAtivo ? undefined : [(val) => !!val || 'Selecione um arquivo']"
               :error="!!errors.arquivo"
               :error-message="errors.arquivo?.[0]"
               :hint="
-                isCnh
-                  ? fotosCnh
-                    ? 'JPG ou PNG de até 2 MB por foto'
-                    : 'PDF de até 2 MB'
-                  : 'PDF, JPG ou PNG de até 2 MB'
+                anexoSalvoAtivo
+                  ? 'Remova o documento atual para selecionar outro arquivo ou alterar o formato.'
+                  : isCnh
+                    ? fotosCnh
+                      ? 'JPG ou PNG de até 2 MB por foto'
+                      : 'PDF de até 2 MB'
+                    : 'PDF, JPG ou PNG de até 2 MB'
               "
               @rejected="onRejected"
             >
               <template #prepend><q-icon name="upload_file" /></template>
+              <template v-if="anexoSalvoAtivo" #append>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="cancel"
+                  color="grey-6"
+                  aria-label="Remover documento atual"
+                  :disable="enviando || carregandoCampos"
+                  @click.stop.prevent="removerAnexoSalvo"
+                >
+                  <q-tooltip>{{
+                    fotosCnh ? 'Remover frente e verso atuais' : 'Remover documento atual'
+                  }}</q-tooltip>
+                </q-btn>
+              </template>
             </q-file>
             <q-file
               v-if="fotosCnh"
@@ -76,10 +122,15 @@
               outlined
               clearable
               label="Verso da CNH"
+              :readonly="anexoSalvoAtivo"
+              :stack-label="anexoSalvoAtivo"
+              :display-value="anexoSalvoAtivo ? nomeAnexoSalvo(documento?.verso) : undefined"
               :accept="formatosImagem"
               :max-file-size="2097152"
-              :disable="enviando"
-              :rules="[(val) => !!val || 'Selecione a foto do verso da CNH']"
+              :disable="enviando || carregandoCampos"
+              :rules="
+                anexoSalvoAtivo ? undefined : [(val) => !!val || 'Selecione a foto do verso da CNH']
+              "
               :error="!!errors.arquivo_verso"
               :error-message="errors.arquivo_verso?.[0]"
               hint="JPG ou PNG de até 2 MB por foto"
@@ -160,6 +211,17 @@
                       :error-message="errors['cnh.ear']?.[0]"
                     />
                   </div>
+                  <div v-if="isReenvio" class="col-12">
+                    <q-input
+                      :model-value="motivoReprovacaoTexto"
+                      outlined
+                      readonly
+                      type="textarea"
+                      autogrow
+                      label="Motivo da reprovação"
+                      hide-bottom-space
+                    />
+                  </div>
                 </div>
                 <q-inner-loading v-if="carregandoCampos" showing class="carregamento-cnh">
                   <div
@@ -178,6 +240,16 @@
                 </q-inner-loading>
               </div>
             </template>
+            <q-input
+              v-if="!isCnh && isReenvio"
+              :model-value="motivoReprovacaoTexto"
+              class="q-mt-md"
+              outlined
+              readonly
+              type="textarea"
+              autogrow
+              label="Motivo da reprovação"
+            />
           </section>
           <section class="col-12 col-md-7 q-pa-md bg-grey-2 previa-documento">
             <div class="row items-center q-mb-sm">
@@ -263,7 +335,28 @@ const model = computed({
   set: (val) => emit('update:modelValue', val),
 })
 const isCnh = computed(() => props.documento?.possui_dados_cnh === true)
+const isReenvio = computed(() => props.documento?.status === 'reprovado')
+const motivoReprovacaoTexto = computed(
+  () =>
+    props.documento?.motivo_reprovacao_texto ||
+    props.documento?.descricao_reprovacao ||
+    'Motivo não informado.',
+)
 const formatoCnh = ref('pdf')
+const anexoSalvoRemovido = ref(false)
+const anexoSalvoAtivo = computed(() => !anexoSalvoRemovido.value && !!props.documento?.url)
+const documentoSalvoPdf = computed(
+  () =>
+    props.documento?.mime_type === 'application/pdf' ||
+    props.documento?.type?.toLowerCase() === 'pdf' ||
+    /\.pdf$/i.test(props.documento?.name || '') ||
+    /\.pdf(?:[?#]|$)/i.test(props.documento?.url || ''),
+)
+const formatoCnhSalvo = computed(() => {
+  if (!isCnh.value || !(props.documento?.url || props.documento?.verso?.url)) return null
+  if (props.documento?.verso?.url) return 'fotos'
+  return documentoSalvoPdf.value ? 'pdf' : 'fotos'
+})
 const fotosCnh = computed(() => isCnh.value && formatoCnh.value === 'fotos')
 const formatosImagem = '.jpg,.jpeg,.png,image/jpeg,image/png'
 const formatosArquivo = `.pdf,application/pdf,${formatosImagem}`
@@ -272,11 +365,20 @@ const fileVerso = ref(null)
 const ladoPrevia = ref('frente')
 const previewFrente = ref('')
 const previewVerso = ref('')
-const previewUrl = computed(() =>
-  fotosCnh.value && ladoPrevia.value === 'verso' ? previewVerso.value : previewFrente.value,
-)
-const isPdf = computed(
-  () => file.value?.type === 'application/pdf' || /\.pdf$/i.test(file.value?.name || ''),
+const previewUrl = computed(() => {
+  if (!file.value && !fileVerso.value && anexoSalvoAtivo.value) {
+    return (
+      (fotosCnh.value && ladoPrevia.value === 'verso'
+        ? props.documento?.verso?.url
+        : props.documento?.url) || ''
+    )
+  }
+  return fotosCnh.value && ladoPrevia.value === 'verso' ? previewVerso.value : previewFrente.value
+})
+const isPdf = computed(() =>
+  file.value
+    ? file.value.type === 'application/pdf' || /\.pdf$/i.test(file.value.name || '')
+    : anexoSalvoAtivo.value && documentoSalvoPdf.value,
 )
 const isImagem = (value) => !!value && /^(?:image\/jpeg|image\/png)$/.test(value.type)
 const arquivosProntos = computed(() =>
@@ -331,6 +433,25 @@ const emptyCnh = () => ({
 const cnh = ref(emptyCnh())
 let loadVersion = 0
 
+function nomeAnexoSalvo(anexo) {
+  if (anexo?.name) return anexo.name
+  if (!anexo?.url) return ''
+  try {
+    const nome = new URL(anexo?.url).pathname.split('/').pop()
+    if (nome) return decodeURIComponent(nome)
+  } catch {
+    // URLs antigas podem não trazer um nome de arquivo válido.
+  }
+  return 'Documento salvo'
+}
+
+function removerAnexoSalvo() {
+  if (enviando.value || carregandoCampos.value) return
+  anexoSalvoRemovido.value = true
+  ladoPrevia.value = 'frente'
+  errors.value = {}
+}
+
 function releasePreview() {
   for (const url of [previewFrente.value, previewVerso.value]) {
     if (url) URL.revokeObjectURL(url)
@@ -372,7 +493,8 @@ function beforeShow() {
   cacheLeiturasCnh = new WeakMap()
   file.value = null
   fileVerso.value = null
-  formatoCnh.value = 'pdf'
+  anexoSalvoRemovido.value = false
+  formatoCnh.value = formatoCnhSalvo.value || 'pdf'
   ladoPrevia.value = 'frente'
   camposEditados.clear()
   camposExtraidos.clear()

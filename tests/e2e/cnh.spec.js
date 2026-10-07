@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { pdfFile } from '../helpers/pdf.mjs'
 import { tiposDocumento } from '../fixtures/tipos-documento.mjs'
+import { motivosReprovacao } from '../fixtures/motivos-reprovacao.mjs'
 import { readFile } from 'node:fs/promises'
 
 const user = {
@@ -94,7 +95,7 @@ test('CNH mantém arquivo e campos ao clicar fora ou pressionar Escape', async (
   await expect(dialog).not.toBeVisible()
 })
 
-test('trocar o verso durante a leitura reutiliza a frente pronta e preserva edição manual', async ({
+test('trocar o verso programaticamente durante a leitura reutiliza a frente pronta e preserva edição manual', async ({
   page,
 }) => {
   test.setTimeout(120000)
@@ -169,6 +170,12 @@ test('exige frente e verso, le as duas fotos com OCR e envia uma unica CNH', asy
   await expect(group).toHaveAttribute('aria-busy', 'true')
   await expect(group.locator('.q-spinner')).toHaveCount(1)
   await expect(dialog.getByLabel('Nome na CNH', { exact: true })).toBeDisabled()
+  await expect(inputs.nth(0)).toBeDisabled()
+  await expect(inputs.nth(1)).toBeDisabled()
+  await expect(dialog.getByRole('button', { name: 'PDF da CNH', exact: true })).toBeDisabled()
+  await expect(
+    dialog.getByRole('button', { name: 'Fotos: frente e verso', exact: true }),
+  ).toBeDisabled()
   await dialog.getByRole('tab', { name: 'Verso', exact: true }).click()
   await expect(dialog.getByRole('img', { name: 'Prévia da CNH: verso', exact: true })).toBeVisible()
   await expect(group).toHaveAttribute('aria-busy', 'false', { timeout: 60000 })
@@ -179,6 +186,12 @@ test('exige frente e verso, le as duas fotos com OCR e envia uma unica CNH', asy
     },
   )
   await expect(group).toHaveAttribute('aria-busy', 'false')
+  await expect(inputs.nth(0)).toBeEnabled()
+  await expect(inputs.nth(1)).toBeEnabled()
+  await expect(dialog.getByRole('button', { name: 'PDF da CNH', exact: true })).toBeEnabled()
+  await expect(
+    dialog.getByRole('button', { name: 'Fotos: frente e verso', exact: true }),
+  ).toBeEnabled()
   await expect(dialog.getByLabel('Nome na CNH', { exact: true })).toHaveValue('JOAO DA SILVA')
   await expect(dialog.getByLabel('CPF', { exact: true })).toHaveValue('529.982.247-25')
   await expect(dialog.getByLabel('Número de registro', { exact: true })).toHaveValue('00024681357')
@@ -211,6 +224,9 @@ test('libera preenchimento manual quando o tratamento das fotos falha', async ({
     'false',
   )
   await expect(dialog.getByLabel('Nome na CNH', { exact: true })).toBeEnabled()
+  await expect(inputs.nth(0)).toBeEnabled()
+  await expect(inputs.nth(1)).toBeEnabled()
+  await expect(dialog.getByRole('button', { name: 'PDF da CNH', exact: true })).toBeEnabled()
   await expect(dialog.getByRole('button', { name: 'Enviar', exact: true })).toBeEnabled()
 })
 
@@ -247,9 +263,10 @@ test('preenche frente e verso reais sem usar as legendas como dados', async ({ p
   }
 })
 
-test('trocar fotos por PDF cancela o OCR, limpa os dois arquivos e preserva edicao manual', async ({
+test('bloqueia arquivos e formato durante o OCR e libera a troca por PDF ao concluir', async ({
   page,
 }) => {
+  test.setTimeout(120000)
   const dialog = page.locator('.documento-dialog')
   await dialog.getByLabel('Nome na CNH', { exact: true }).fill('NOME CONFERIDO')
   await dialog.getByRole('button', { name: 'Fotos: frente e verso', exact: true }).click()
@@ -269,18 +286,28 @@ test('trocar fotos por PDF cancela o OCR, limpa os dois arquivos e preserva edic
       'aria-busy',
       'true',
     )
-    await dialog.getByRole('button', { name: 'PDF da CNH', exact: true }).click()
-    await expect(dialog.locator('input[type=file]')).toHaveCount(1)
-    await expect(dialog.getByRole('group', { name: 'Campos da CNH' })).toHaveAttribute(
-      'aria-busy',
-      'false',
-    )
-    await expect(dialog.getByRole('img')).toHaveCount(0)
-    await expect(dialog.getByRole('button', { name: 'Enviar', exact: true })).toBeDisabled()
+    await expect(inputs.nth(0)).toBeDisabled()
+    await expect(inputs.nth(1)).toBeDisabled()
+    await expect(dialog.getByRole('button', { name: 'PDF da CNH', exact: true })).toBeDisabled()
+    await expect(
+      dialog.getByRole('button', { name: 'Fotos: frente e verso', exact: true }),
+    ).toBeDisabled()
+    await expect(dialog.locator('.q-field__focusable-action')).toHaveCount(0)
     await expect(dialog.getByLabel('Nome na CNH', { exact: true })).toHaveValue('NOME CONFERIDO')
   } finally {
     liberar()
   }
+  await expect(dialog.getByRole('group', { name: 'Campos da CNH' })).toHaveAttribute(
+    'aria-busy',
+    'false',
+    { timeout: 60000 },
+  )
+  await dialog.getByRole('button', { name: 'PDF da CNH', exact: true }).click()
+  await expect(dialog.locator('input[type=file]')).toHaveCount(1)
+  await expect(dialog.locator('input[type=file]')).toBeEnabled()
+  expect(await dialog.locator('input[type=file]').evaluate((input) => input.files.length)).toBe(0)
+  await expect(dialog.getByRole('img')).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Enviar', exact: true })).toBeDisabled()
   await dialog.locator('input[type=file]').setInputFiles(cnh)
   await expect(dialog.getByRole('status')).toContainText('9 campos preenchidos')
   await expect(dialog.getByLabel('Nome na CNH', { exact: true })).toHaveValue('NOME CONFERIDO')
@@ -315,6 +342,8 @@ test.beforeEach(async ({ page }) => {
     else if (endpoint === '/motoristas') data = paginated([motorista])
     else if (endpoint === '/motoristas/7') data = motorista
     else if (endpoint === '/motorista-documentos/tipos') data = { data: tiposDocumento }
+    else if (endpoint === '/motorista-documentos/motivos-reprovacao')
+      data = { data: motivosReprovacao }
     else if (endpoint === '/motorista-documentos/7/resumo')
       data = {
         data: tiposDocumento.map((tipo) => ({ ...tipo, id: null, status: null, url: null })),
@@ -387,13 +416,9 @@ for (const status of ['em_analise', 'aprovado', 'reprovado']) {
     await expect(row.getByLabel('Reprovar documento', { exact: true })).toHaveCount(
       status === 'reprovado' ? 0 : 1,
     )
-    await expect(row.getByLabel('Visualizar documento', { exact: true })).toHaveAttribute(
-      'href',
-      url,
-    )
-    await expect(row.getByLabel('Visualizar documento', { exact: true })).toHaveAttribute(
-      'target',
-      '_blank',
+    await expect(row.getByLabel('Visualizar documento', { exact: true })).toHaveCount(0)
+    await expect(row.getByRole('button', { name: 'Expandir documento', exact: true })).toHaveCount(
+      status === 'em_analise' ? 1 : 0,
     )
     await expect(row.getByLabel('Baixar documento', { exact: true })).toBeEnabled()
     await expect(
@@ -462,7 +487,7 @@ test('aprova um documento reprovado e baixa o PDF com nome e conteúdo originais
   expect(await readFile(await download.path())).toEqual(cnh.buffer)
 })
 
-test('permite visualizar e baixar separadamente a frente e o verso da CNH', async ({ page }) => {
+test('permite baixar separadamente a frente e o verso da CNH', async ({ page }) => {
   const fotos = {
     frente: await fotoCnh(page, 'frente.png', camposFrente),
     verso: await fotoCnh(page, 'verso.png', camposVerso),
@@ -476,16 +501,7 @@ test('permite visualizar e baixar separadamente a frente e o verso da CNH', asyn
     mime_type: 'image/png',
     verso: { url: versoUrl, name: 'verso.png', mime_type: 'image/png' },
   })
-  await row.getByLabel('Visualizar documento', { exact: true }).click()
-  await expect(page.getByRole('link', { name: 'Visualizar frente', exact: true })).toHaveAttribute(
-    'href',
-    frenteUrl,
-  )
-  await expect(page.getByRole('link', { name: 'Visualizar verso', exact: true })).toHaveAttribute(
-    'href',
-    versoUrl,
-  )
-  await page.keyboard.press('Escape')
+  await expect(row.getByLabel('Visualizar documento', { exact: true })).toHaveCount(0)
   await page.route('**/motorista-documentos/100/download?*', (route) => {
     if (route.request().method() === 'OPTIONS') return route.fallback()
     const lado = new URL(route.request().url()).searchParams.get('lado')
@@ -566,7 +582,7 @@ test('permite tentar novamente quando o catálogo de documentos falha', async ({
   await expect(documentos.locator('.q-banner')).toHaveCount(0)
 })
 
-test('reprova um anexo sem solicitar ou enviar observacao', async ({ page }) => {
+test('exige motivo do enum para reprovar sem enviar observacoes da CNH', async ({ page }) => {
   let reprovado = false
   await page.route('**/motorista-documentos/7/resumo', async (route) => {
     await route.fulfill({
@@ -593,7 +609,10 @@ test('reprova um anexo sem solicitar ou enviar observacao', async ({ page }) => 
       })
       return
     }
-    expect(route.request().postDataJSON()).toEqual({ status: 'reprovado' })
+    expect(route.request().postDataJSON()).toEqual({
+      status: 'reprovado',
+      motivo_reprovacao: 'ilegivel',
+    })
     reprovado = true
     await route.fulfill({
       headers: { 'Access-Control-Allow-Origin': '*' },
@@ -607,17 +626,427 @@ test('reprova um anexo sem solicitar ou enviar observacao', async ({ page }) => 
     .filter({ has: page.locator('.q-icon', { hasText: /^close$/ }) })
     .click()
   await expect(page.getByLabel('Observação', { exact: true })).toHaveCount(0)
+  const rejeicao = page.locator('.reprovar-documento-dialog')
+  await rejeicao.getByRole('button', { name: 'Reprovar documento', exact: true }).click()
+  await expect(
+    rejeicao.getByText('Selecione o motivo da reprovação', { exact: true }),
+  ).toBeVisible()
+  await rejeicao.getByLabel('Motivo da reprovação', { exact: true }).click()
+  await page.getByRole('option', { name: 'Documento ilegível', exact: true }).click()
+  await expect(rejeicao.getByLabel('Descreva o motivo da reprovação', { exact: true })).toHaveCount(
+    0,
+  )
   const enviado = page.waitForRequest(
     (request) =>
       request.method() === 'PUT' && request.url().endsWith('/mudar-status-documento/100'),
   )
-  await page
-    .locator('.q-dialog .q-card')
-    .filter({ hasText: 'Deseja realmente reprovar o documento?' })
-    .getByRole('button', { name: 'Sim', exact: true })
-    .click()
-  expect((await enviado).postDataJSON()).toEqual({ status: 'reprovado' })
+  await rejeicao.getByRole('button', { name: 'Reprovar documento', exact: true }).click()
+  expect((await enviado).postDataJSON()).toEqual({
+    status: 'reprovado',
+    motivo_reprovacao: 'ilegivel',
+  })
   await expect(documentos.getByText('reprovado', { exact: true })).toBeVisible()
+})
+
+test('Outro exige texto e mantém a justificativa quando a API rejeita a alteração', async ({
+  page,
+}) => {
+  const row = await mockDocumentoEnviado(page, { status: 'em_analise' })
+  let chamadas = 0
+  await page.route('**/mudar-status-documento/100', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback()
+    chamadas++
+    expect(route.request().postDataJSON()).toEqual({
+      status: 'reprovado',
+      motivo_reprovacao: 'outro',
+      descricao_reprovacao: 'Foto com reflexo. Envie uma foto nítida.',
+    })
+    return route.fulfill({
+      status: 422,
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json: {
+        message: 'Confira a justificativa.',
+        errors: { descricao_reprovacao: ['Confira a justificativa.'] },
+      },
+    })
+  })
+  await row.getByLabel('Reprovar documento', { exact: true }).click()
+  const rejeicao = page.locator('.reprovar-documento-dialog')
+  await rejeicao.getByLabel('Motivo da reprovação', { exact: true }).click()
+  await page.getByRole('option', { name: 'Outro', exact: true }).click()
+  const descricao = rejeicao.getByLabel('Descreva o motivo da reprovação', { exact: true })
+  await rejeicao.getByRole('button', { name: 'Reprovar documento', exact: true }).click()
+  await expect(
+    rejeicao.getByText('Descreva o motivo da reprovação', { exact: true }).last(),
+  ).toBeVisible()
+  expect(chamadas).toBe(0)
+  await descricao.fill('  Foto com reflexo. Envie uma foto nítida.  ')
+  await rejeicao.getByRole('button', { name: 'Reprovar documento', exact: true }).click()
+  await expect(rejeicao.getByText('Confira a justificativa.', { exact: true })).toBeVisible()
+  await expect(descricao).toHaveValue('  Foto com reflexo. Envie uma foto nítida.  ')
+  expect(chamadas).toBe(1)
+  await rejeicao.getByLabel('Motivo da reprovação', { exact: true }).click()
+  await page.getByRole('option', { name: 'Documento vencido', exact: true }).click()
+  await expect(descricao).toHaveCount(0)
+})
+
+test('recupera o catálogo de motivos após falha e usa os títulos retornados pela API', async ({
+  page,
+}) => {
+  const row = await mockDocumentoEnviado(page, { status: 'aprovado' })
+  let chamadas = 0
+  await page.route('**/motorista-documentos/motivos-reprovacao', (route) => {
+    chamadas++
+    return route.fulfill({
+      status: chamadas === 1 ? 500 : 200,
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json:
+        chamadas === 1
+          ? { message: 'Falha ao consultar' }
+          : { data: [{ value: 'ilegivel', label: 'API: Foto ilegível', exige_descricao: false }] },
+    })
+  })
+  await row.getByLabel('Reprovar documento', { exact: true }).click()
+  const rejeicao = page.locator('.reprovar-documento-dialog')
+  await expect(
+    rejeicao.getByRole('button', { name: 'Reprovar documento', exact: true }),
+  ).toBeDisabled()
+  await rejeicao.getByRole('button', { name: 'Tentar novamente', exact: true }).click()
+  await rejeicao.getByLabel('Motivo da reprovação', { exact: true }).click()
+  await expect(page.getByRole('option', { name: 'API: Foto ilegível', exact: true })).toBeVisible()
+  expect(chamadas).toBe(2)
+})
+
+const dadosCnhSalvos = {
+  nome: 'NOME SALVO',
+  cpf: '52998224725',
+  numero_registro: '00024681357',
+  cnh_categoria: 'AD',
+  data_nascimento: '1990-05-20',
+  primeira_habilitacao: '2008-06-10',
+  data_emissao: '2026-01-15',
+  cnh_expiracao: '2036-01-15',
+  observacao: 'A, B',
+  ear: false,
+}
+
+for (const [formato, documento] of [
+  ['PDF', { url: 'http://localhost/cnh.pdf', mime_type: 'application/pdf' }],
+  [
+    'fotos',
+    {
+      url: 'http://localhost/frente.png',
+      mime_type: 'image/png',
+      verso: { url: 'http://localhost/verso.png' },
+    },
+  ],
+]) {
+  test(`expande CNH em análise com dados salvos e prévia de ${formato}`, async ({ page }) => {
+    await page.route('**/motoristas/7', (route) =>
+      route.fulfill({
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        json: { ...motorista, ...dadosCnhSalvos },
+      }),
+    )
+    const row = await mockDocumentoEnviado(page, { status: 'em_analise', ...documento })
+    await row.getByRole('button', { name: 'Expandir documento', exact: true }).click()
+    const upload = page.locator('.documento-dialog')
+    await expect(upload.getByLabel('Nome na CNH', { exact: true })).toHaveValue('NOME SALVO')
+    await expect(upload.getByLabel('Motivo da reprovação', { exact: true })).toHaveCount(0)
+    await expect(
+      upload.getByRole('button', { name: 'Remover documento atual', exact: true }),
+    ).toBeEnabled()
+    if (formato === 'PDF') {
+      await expect(upload.locator('iframe')).toHaveAttribute('src', documento.url)
+      await expect(upload.locator('.q-file').first()).toContainText('cnh.pdf')
+      await expect(
+        upload.getByRole('button', { name: 'Fotos: frente e verso', exact: true }),
+      ).toBeDisabled()
+    } else {
+      await expect(
+        upload.getByRole('img', { name: 'Prévia da CNH: frente', exact: true }),
+      ).toHaveAttribute('src', documento.url)
+      await upload.getByRole('tab', { name: 'Verso', exact: true }).click()
+      await expect(
+        upload.getByRole('img', { name: 'Prévia da CNH: verso', exact: true }),
+      ).toHaveAttribute('src', documento.verso.url)
+      await expect(upload.getByRole('button', { name: 'PDF da CNH', exact: true })).toBeDisabled()
+    }
+  })
+}
+
+test('reenviar CNH preenche dados salvos, mostra motivo abaixo do EAR e preserva correção manual', async ({
+  page,
+}) => {
+  let reenviado = false
+  await page.route('**/motoristas/7', (route) =>
+    route.fulfill({
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json: { ...motorista, ...dadosCnhSalvos },
+    }),
+  )
+  await page.route('**/motorista-documentos/7/resumo', (route) =>
+    route.fulfill({
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json: {
+        data: [
+          {
+            ...tiposDocumento[0],
+            id: reenviado ? 101 : 100,
+            status: reenviado ? 'em_analise' : 'reprovado',
+            url: 'http://localhost/motorista_documentos_anexos/cnh.pdf',
+            mime_type: 'application/pdf',
+            motivo_reprovacao: reenviado ? null : 'outro',
+            descricao_reprovacao: reenviado ? null : 'Nome divergente. Confira o documento.',
+            motivo_reprovacao_texto: reenviado ? null : 'Nome divergente. Confira o documento.',
+          },
+        ],
+      },
+    }),
+  )
+  await page.route('**/motorista-documentos', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback()
+    const corpo = route.request().postData()
+    expect(corpo).toContain('name="cnh[nome]"\r\n\r\nNOME CORRIGIDO')
+    expect(corpo).not.toContain('name="motivo_reprovacao"')
+    expect(corpo).not.toContain('name="descricao_reprovacao"')
+    reenviado = true
+    return route.fulfill({
+      status: 201,
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json: { message: 'Novo envio em análise' },
+    })
+  })
+  await reabrirDocumentos(page)
+  const documentos = page.locator('.documentos-usuario-dialog')
+  await documentos.getByRole('button', { name: 'Reenviar documento', exact: true }).click()
+  const upload = page.locator('.documento-dialog')
+  await expect(upload.getByLabel('Nome na CNH', { exact: true })).toHaveValue('NOME SALVO')
+  for (const [label, valor] of Object.entries({
+    CPF: '529.982.247-25',
+    'Número de registro': '00024681357',
+    Categoria: 'AD',
+    'Data de nascimento': '1990-05-20',
+    'Primeira habilitação': '2008-06-10',
+    'Data de emissão': '2026-01-15',
+    'Validade da CNH': '2036-01-15',
+    'Observações da CNH': 'A, B',
+  }))
+    await expect(upload.getByLabel(label, { exact: true })).toHaveValue(valor)
+  await expect(upload.getByLabel('EAR — Exerce atividade remunerada', { exact: true })).toHaveValue(
+    'Não',
+  )
+  const motivo = upload.getByLabel('Motivo da reprovação', { exact: true })
+  await expect(motivo).toHaveValue('Nome divergente. Confira o documento.')
+  await expect(motivo).toHaveAttribute('readonly', '')
+  const ear = await upload
+    .getByLabel('EAR — Exerce atividade remunerada', { exact: true })
+    .boundingBox()
+  const posicao = await motivo.boundingBox()
+  expect(posicao.y).toBeGreaterThan(ear.y)
+  await expect(upload.locator('iframe')).toHaveAttribute(
+    'src',
+    'http://localhost/motorista_documentos_anexos/cnh.pdf',
+  )
+  await expect(upload.getByRole('button', { name: 'PDF da CNH', exact: true })).toBeEnabled()
+  await expect(upload.getByRole('button', { name: 'PDF da CNH', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await expect(
+    upload.getByRole('button', { name: 'Fotos: frente e verso', exact: true }),
+  ).toBeDisabled()
+  await expect(upload.getByRole('tab', { name: 'Verso', exact: true })).toHaveCount(0)
+  await expect(upload.getByRole('button', { name: 'Enviar', exact: true })).toBeDisabled()
+  await upload.getByLabel('Nome na CNH', { exact: true }).fill('NOME CORRIGIDO')
+  await expect(upload.locator('.q-file').first()).toContainText('cnh.pdf')
+  await upload.getByRole('button', { name: 'Remover documento atual', exact: true }).click()
+  await expect(upload.locator('iframe')).toHaveCount(0)
+  await expect(
+    upload.getByRole('button', { name: 'Fotos: frente e verso', exact: true }),
+  ).toBeEnabled()
+  await upload.locator('input[type=file]').setInputFiles(cnh)
+  await expect(upload.getByRole('group', { name: 'Campos da CNH' })).toHaveAttribute(
+    'aria-busy',
+    'false',
+  )
+  await expect(upload.getByLabel('Nome na CNH', { exact: true })).toHaveValue('NOME CORRIGIDO')
+  await expect(
+    upload.getByRole('button', { name: 'Fotos: frente e verso', exact: true }),
+  ).toBeEnabled()
+  await upload.getByRole('button', { name: 'Enviar', exact: true }).click()
+  await expect(upload).not.toBeVisible()
+  await expect(documentos.getByText('em_analise', { exact: true })).toBeVisible()
+  await expect(
+    documentos.getByRole('button', { name: 'Reenviar documento', exact: true }),
+  ).toHaveCount(0)
+})
+
+test('reenvio por fotos mostra os dois anexos antigos e motivos padronizados sem carregar arquivos para upload', async ({
+  page,
+}) => {
+  const row = await mockDocumentoEnviado(page, {
+    status: 'reprovado',
+    url: 'http://localhost/frente.png',
+    mime_type: 'image/png',
+    motivo_reprovacao_texto: 'Documento ilegível',
+    verso: { url: 'http://localhost/verso.png', mime_type: 'image/png' },
+  })
+  await row.getByRole('button', { name: 'Reenviar documento', exact: true }).click()
+  const upload = page.locator('.documento-dialog')
+  await expect(upload.locator('input[type=file]')).toHaveCount(2)
+  await expect(
+    upload.getByRole('button', { name: 'Fotos: frente e verso', exact: true }),
+  ).toBeEnabled()
+  await expect(
+    upload.getByRole('button', { name: 'Fotos: frente e verso', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  await expect(upload.getByRole('button', { name: 'PDF da CNH', exact: true })).toBeDisabled()
+  await expect(upload.locator('iframe')).toHaveCount(0)
+  await expect(
+    upload.getByRole('img', { name: 'Prévia da CNH: frente', exact: true }),
+  ).toHaveAttribute('src', 'http://localhost/frente.png')
+  await upload.getByRole('tab', { name: 'Verso', exact: true }).click()
+  await expect(
+    upload.getByRole('img', { name: 'Prévia da CNH: verso', exact: true }),
+  ).toHaveAttribute('src', 'http://localhost/verso.png')
+  await expect(upload.getByLabel('Motivo da reprovação', { exact: true })).toHaveValue(
+    'Documento ilegível',
+  )
+  expect(
+    await upload
+      .locator('input[type=file]')
+      .evaluateAll((inputs) => inputs.map((input) => input.files.length)),
+  ).toEqual([0, 0])
+  await expect(upload.getByRole('button', { name: 'Enviar', exact: true })).toBeDisabled()
+  await expect(upload.locator('.q-file').nth(0)).toContainText('frente.png')
+  await expect(upload.locator('.q-file').nth(1)).toContainText('verso.png')
+  await upload.getByRole('button', { name: 'Remover documento atual', exact: true }).click()
+  await expect(upload.getByRole('img')).toHaveCount(0)
+  await expect(upload.getByRole('button', { name: 'PDF da CNH', exact: true })).toBeEnabled()
+  await upload.getByRole('button', { name: 'PDF da CNH', exact: true }).click()
+  await expect(upload.getByRole('tab')).toHaveCount(0)
+  await expect(upload.locator('input[type=file]')).toHaveCount(1)
+  await upload.locator('input[type=file]').setInputFiles(cnh)
+  await expect(upload.getByRole('status')).toContainText('10 campos preenchidos')
+  const enviado = page.waitForRequest(
+    (request) => request.method() === 'POST' && request.url().endsWith('/motorista-documentos'),
+  )
+  await upload.getByRole('button', { name: 'Enviar', exact: true }).click()
+  const corpo = (await enviado).postData()
+  expect(corpo).toContain(`name="arquivo"; filename="${cnh.name}"`)
+  expect(corpo).not.toContain('name="arquivo_verso"')
+  await expect(upload).not.toBeVisible()
+})
+
+test('remover o PDF permite trocar por fotos sem perder dados e cancelar restaura o anexo salvo', async ({
+  page,
+}) => {
+  const mutacoes = []
+  page.on('request', (request) => {
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(request.method())) mutacoes.push(request.url())
+  })
+  await page.route('**/motoristas/7', (route) =>
+    route.fulfill({
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json: { ...motorista, ...dadosCnhSalvos },
+    }),
+  )
+  const row = await mockDocumentoEnviado(page, {
+    status: 'reprovado',
+    url: 'http://localhost/cnh-antiga.pdf',
+    name: 'CNH atual.pdf',
+    mime_type: 'application/pdf',
+  })
+  await row.getByRole('button', { name: 'Reenviar documento', exact: true }).click()
+  const upload = page.locator('.documento-dialog')
+  await expect(upload.getByLabel('Nome na CNH', { exact: true })).toHaveValue('NOME SALVO')
+  await expect(upload.locator('.q-file').first()).toContainText('CNH atual.pdf')
+  await expect(upload.locator('.q-field--error')).toHaveCount(0)
+  await upload.getByLabel('Nome na CNH', { exact: true }).fill('NOME CONFERIDO')
+  await upload.getByRole('button', { name: 'Remover documento atual', exact: true }).click()
+  await expect(upload.locator('iframe')).toHaveCount(0)
+  await expect(upload.getByRole('button', { name: 'Abrir arquivo', exact: true })).toHaveCount(0)
+  await upload.getByRole('button', { name: 'Fotos: frente e verso', exact: true }).click()
+  await expect(upload.locator('input[type=file]')).toHaveCount(2)
+  await expect(upload.getByLabel('Nome na CNH', { exact: true })).toHaveValue('NOME CONFERIDO')
+  await expect(upload.getByLabel('Número de registro', { exact: true })).toHaveValue('00024681357')
+  await expect(upload.getByRole('button', { name: 'Enviar', exact: true })).toBeDisabled()
+  await upload.getByRole('button', { name: 'Cancelar', exact: true }).click()
+  await expect(upload).not.toBeVisible()
+  await row.getByRole('button', { name: 'Reenviar documento', exact: true }).click()
+  await expect(upload.locator('iframe')).toHaveAttribute('src', 'http://localhost/cnh-antiga.pdf')
+  await expect(upload.locator('.q-file').first()).toContainText('CNH atual.pdf')
+  await expect(
+    upload.getByRole('button', { name: 'Fotos: frente e verso', exact: true }),
+  ).toBeDisabled()
+  expect(mutacoes).toEqual([])
+})
+
+for (const [identificacao, documento] of [
+  ['MIME', { url: 'http://localhost/anexo/100', mime_type: 'application/pdf' }],
+  ['extensão na URL', { url: 'http://localhost/cnh.PDF?download=1' }],
+  ['nome do arquivo', { url: 'http://localhost/anexo/100', name: 'cnh.pdf' }],
+]) {
+  test(`reenvio reconhece PDF por ${identificacao} e bloqueia frente e verso`, async ({ page }) => {
+    const row = await mockDocumentoEnviado(page, { status: 'reprovado', ...documento })
+    await row.getByRole('button', { name: 'Reenviar documento', exact: true }).click()
+    const upload = page.locator('.documento-dialog')
+    await expect(upload.getByLabel('Nome na CNH', { exact: true })).toBeEnabled()
+    await expect(upload.getByRole('button', { name: 'PDF da CNH', exact: true })).toBeEnabled()
+    await expect(
+      upload.getByRole('button', { name: 'Fotos: frente e verso', exact: true }),
+    ).toBeDisabled()
+    await expect(upload.locator('iframe')).toHaveAttribute('src', documento.url)
+    await expect(upload.locator('input[type=file]')).toHaveCount(1)
+    await expect(upload.getByRole('tab')).toHaveCount(0)
+  })
+}
+
+test('reenvio sem anexo salvo permite escolher PDF ou fotos', async ({ page }) => {
+  const row = await mockDocumentoEnviado(page, { status: 'reprovado', url: null })
+  await row.getByRole('button', { name: 'Reenviar documento', exact: true }).click()
+  const upload = page.locator('.documento-dialog')
+  await expect(upload.getByRole('button', { name: 'PDF da CNH', exact: true })).toBeEnabled()
+  await expect(
+    upload.getByRole('button', { name: 'Fotos: frente e verso', exact: true }),
+  ).toBeEnabled()
+  await upload.getByRole('button', { name: 'Fotos: frente e verso', exact: true }).click()
+  await expect(upload.locator('input[type=file]')).toHaveCount(2)
+  await upload.getByRole('button', { name: 'PDF da CNH', exact: true }).click()
+  await expect(upload.locator('input[type=file]')).toHaveCount(1)
+})
+
+test('reenvio de outros documentos também mostra motivo apenas para leitura', async ({ page }) => {
+  await page.route('**/motorista-documentos/7/resumo', (route) =>
+    route.fulfill({
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json: {
+        data: [
+          {
+            ...tiposDocumento[1],
+            id: 100,
+            status: 'reprovado',
+            motivo_reprovacao_texto: 'Documento vencido',
+          },
+        ],
+      },
+    }),
+  )
+  await reabrirDocumentos(page)
+  await page
+    .locator('.documentos-usuario-dialog')
+    .getByRole('button', { name: 'Reenviar documento', exact: true })
+    .click()
+  const upload = page.locator('.documento-dialog')
+  await expect(upload.getByLabel('Motivo da reprovação', { exact: true })).toHaveValue(
+    'Documento vencido',
+  )
+  await expect(upload.getByLabel('Motivo da reprovação', { exact: true })).toHaveAttribute(
+    'readonly',
+    '',
+  )
+  await expect(upload.getByRole('group', { name: 'Campos da CNH' })).toHaveCount(0)
 })
 
 for (const tipo of tiposDocumento.filter((item) => !item.possui_dados_cnh)) {
