@@ -1,10 +1,19 @@
 <template>
   <section>
     <SubirArquivo
+      v-if="!documentoSelecionado.possui_dados_crlv"
       @updated="onDocumentoUpdated"
       v-model="dialog.envairArquivo"
       :motorista-id="motoristaId"
       :documento="documentoSelecionado"
+    />
+    <SubirCrlv
+      v-else
+      @updated="onDocumentoUpdated"
+      v-model="dialog.envairArquivo"
+      :motorista-id="motoristaId"
+      :documento="documentoSelecionado"
+      :veiculos="veiculos"
     />
     <q-dialog v-model="model" @before-show="beforeShow" @before-hide="onBeforeHide">
       <q-card class="documentos-usuario-dialog" style="width: 600px; max-width: 50vw">
@@ -30,7 +39,9 @@
           :columns="columns"
           :loading="carregandoDocumentos"
           no-data-label="Nenhum documento disponível."
-          row-key="tipo_documento"
+          :row-key="(row) => row.chave || row.tipo_documento"
+          :pagination="{ rowsPerPage: 0 }"
+          :rows-per-page-options="[0]"
           hide-bottom
           hide-header
         >
@@ -57,10 +68,20 @@
                     <q-item-label class="estilo-coluna" caption>
                       {{ props.row.descricao }}
                     </q-item-label>
+                    <q-item-label v-if="props.row.veiculo" class="text-weight-medium">
+                      {{ props.row.veiculo.placa }} — {{ props.row.veiculo.marca }}
+                      {{ props.row.veiculo.modelo }}
+                    </q-item-label>
+                    <q-item-label v-if="props.row.legado" caption
+                      >Documento anterior sem veículo identificado</q-item-label
+                    >
+                    <q-item-label v-if="props.row.sem_veiculo" caption
+                      >Envie o CRLV para cadastrar o veículo.</q-item-label
+                    >
                     <q-item-label caption>
                       <q-badge
                         :color="badgeColor(props.row.status)"
-                        :label="props.row.status ? props.row.status : 'Não enviado'"
+                        :label="props.row.status ? formatarStatus(props.row.status) : 'Não enviado'"
                       />
                     </q-item-label>
                   </q-item-section>
@@ -173,6 +194,19 @@
             </q-tr>
           </template>
         </q-table>
+        <q-card-actions
+          v-if="veiculos.length && data.some((d) => d.possui_dados_crlv)"
+          align="right"
+        >
+          <q-btn
+            flat
+            color="primary"
+            icon="add"
+            label="Cadastrar veículo com CRLV"
+            :disable="carregandoDocumentos || erroCarregamento"
+            @click="abrirCadastroVeiculo"
+          />
+        </q-card-actions>
       </q-card>
     </q-dialog>
     <JanelaConfirmacao v-model="dialog.confirmacao" @confirm="mudarStatusDocumento('aprovado')">
@@ -190,9 +224,11 @@
 import { computed, ref } from 'vue'
 import { exportFile, useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+import { formatarStatus } from 'src/utils/status'
 import CardPerfilUsuario from 'src/components/usuarios/CardPerfilUsuario.vue'
 import JanelaConfirmacao from 'src/components/JanelaConfirmacao.vue'
 import SubirArquivo from 'src/components/motorista/SubirArquivo.vue'
+import SubirCrlv from 'src/components/motorista/SubirCrlv.vue'
 import ReprovarDocumento from 'src/components/motorista/ReprovarDocumento.vue'
 
 const iconeExpandir = 'M14 4h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6z'
@@ -226,6 +262,7 @@ const dialog = ref({
 })
 
 const data = ref([])
+const veiculos = ref([])
 const carregandoDocumentos = ref(false)
 const erroCarregamento = ref(false)
 const baixandoDocumento = ref(null)
@@ -250,6 +287,16 @@ function beforeShow() {
 function abrirEnvio(documento) {
   documentoSelecionado.value = documento
   dialog.value.envairArquivo = true
+}
+function abrirCadastroVeiculo() {
+  const tipo = data.value.find((d) => d.possui_dados_crlv)
+  if (!tipo) return
+  abrirEnvio({
+    tipo_documento: tipo.tipo_documento,
+    titulo: tipo.titulo,
+    descricao: tipo.descricao,
+    possui_dados_crlv: true,
+  })
 }
 
 function onBeforeHide() {
@@ -346,6 +393,7 @@ const getMotoristaDocumentos = async () => {
     })
     if (version !== documentosVersion) return
     data.value = response.data.data
+    veiculos.value = response.data.veiculos || []
   } catch (error) {
     if (version === documentosVersion) {
       erroCarregamento.value = true

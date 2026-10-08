@@ -7,7 +7,7 @@
       @hide="reabrirPrincipal($event)"
     />
     <q-dialog v-model="model" @before-show="beforeShow" @before-hide="onBeforeHide">
-      <q-card>
+      <q-card style="width: 600px; max-width: 95vw">
         <q-toolbar>
           <!-- <q-avatar rounded size="md" icon="directions_car" color="primary" text-color="white" /> -->
           <q-toolbar-title>
@@ -21,23 +21,33 @@
         <q-separator />
         <CardPerfilUsuario class="q-mt-sm" :usuario="usuario" />
 
-        <q-card-section align="center" v-if="!data.length">
-          <!-- ;  <div style="font-size: 20px" class="text-weight-bold">Nenhum veículo cadastrado</div> -->
-
-          <q-card class="my-card bg-primary text-white q-mt-md">
-            <!-- <q-card-section>
-              <div class="text-h6">Nenhum veículo cadastrado</div>
-            </q-card-section> -->
-
-            <q-icon size="150px" name="data_array" />
-          </q-card>
+        <q-card-section
+          v-if="loading && !data.length"
+          class="column items-center justify-center q-py-xl text-primary"
+          role="status"
+          aria-live="polite"
+        >
+          <q-spinner size="40px" />
+          <span class="q-mt-md">Carregando veículos…</span>
+        </q-card-section>
+        <q-card-section v-else-if="erroCarregamento" class="text-center q-py-lg">
+          <div class="text-negative" role="alert">Não foi possível carregar os veículos.</div>
+          <q-btn
+            class="q-mt-md"
+            flat
+            color="primary"
+            label="Tentar novamente"
+            @click="onRequest()"
+          />
+        </q-card-section>
+        <q-card-section v-else-if="!data.length" class="text-center q-py-lg">
+          <div class="text-grey-7">Nenhum veículo encontrado.</div>
           <q-card-actions class="q-mt-md" align="center">
             <q-btn color="primary" @click="abrirAdicionarVeiculo()" flat>ADICIONAR VEÍCULO</q-btn>
           </q-card-actions>
         </q-card-section>
-        <q-separator />
 
-        <q-card-section v-if="data.length">
+        <q-card-section v-else>
           <div class="q-pa-xs">
             <q-table
               :rows="data"
@@ -100,7 +110,7 @@
 
                   <q-td key="status">
                     <q-badge :color="badgeColor(props.row.veiculo.status)">
-                      {{ props.row.veiculo.status }}
+                      {{ formatarStatus(props.row.veiculo.status) }}
                     </q-badge>
                   </q-td>
 
@@ -136,6 +146,7 @@ import CardPerfilUsuario from 'src/components/usuarios/CardPerfilUsuario.vue'
 
 // import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+import { formatarStatus } from 'src/utils/status'
 
 // PROPS
 const props = defineProps({
@@ -156,6 +167,8 @@ const model = computed({
 
 // STATE
 const loading = ref(false)
+const erroCarregamento = ref(false)
+let requestVersion = 0
 const search = ref('')
 const dialog = ref(false)
 const data = ref([])
@@ -201,7 +214,9 @@ function beforeShow() {
 }
 
 function onBeforeHide() {
-  console.log('passou em onBeforeHide')
+  requestVersion++
+  loading.value = false
+  erroCarregamento.value = false
   data.value = []
 }
 
@@ -219,6 +234,9 @@ function abrirAdicionarVeiculo() {
 }
 
 const badgeColor = (status) => {
+  if (status === 'em_analise') return 'orange'
+  if (status === 'aprovado') return 'green'
+  if (status === 'reprovado') return 'red'
   if (status === 'ativo') return 'green'
   if (status === 'inativo') return 'orange'
   if (status === 'pendente') return 'warning'
@@ -229,10 +247,18 @@ const onRequest = async (props) => {
   await request(props)
 }
 
+function clearSearch() {
+  search.value = ''
+  pagination.value.page = 1
+  request()
+}
+
 const request = async (payload) => {
   if (!props?.usuario?.id) return
+  const version = ++requestVersion
   loading.value = true
-  const { page, rowsPerPage } = payload ? props.pagination : pagination
+  erroCarregamento.value = false
+  const { page, rowsPerPage } = payload?.pagination || pagination.value
   try {
     const response = await api.get(`/motorista-veiculos/${props.usuario?.id}`, {
       params: {
@@ -240,8 +266,10 @@ const request = async (payload) => {
         page: page,
         rowsPerPage: rowsPerPage,
       },
+      timeout: 15000,
     })
 
+    if (version !== requestVersion) return
     data.value = response.data.data
 
     const paginate = response.data
@@ -249,9 +277,12 @@ const request = async (payload) => {
     pagination.value.page = paginate.current_page
     pagination.value.rowsPerPage = paginate.per_page === paginate.total ? 0 : paginate.per_page
   } catch (error) {
-    console.error(error)
+    if (version === requestVersion) {
+      erroCarregamento.value = true
+      console.error(error)
+    }
   } finally {
-    loading.value = false
+    if (version === requestVersion) loading.value = false
   }
 }
 </script>

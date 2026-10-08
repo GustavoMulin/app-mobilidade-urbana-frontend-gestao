@@ -72,7 +72,7 @@
 
             <q-td key="status">
               <q-badge :color="badgeColor(props.row.status)">
-                {{ props.row.status }}
+                {{ formatarStatus(props.row.status) }}
               </q-badge>
             </q-td>
 
@@ -113,6 +113,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { api } from 'boot/axios'
+import { formatarStatus } from 'src/utils/status'
 import CriarVeiculo from 'src/components/veiculos/CriarVeiculo.vue'
 import MostrarVeiculo from 'src/components/veiculos/MostrarVeiculo.vue'
 import EditarVeiculo from 'src/components/veiculos/EditarVeiculo.vue'
@@ -157,6 +158,9 @@ const columns = [
 ]
 
 const badgeColor = (status) => {
+  if (status === 'em_analise') return 'orange'
+  if (status === 'aprovado') return 'green'
+  if (status === 'reprovado') return 'red'
   if (status === 'ativo') return 'green'
   if (status === 'inativo') return 'orange'
   if (status === 'pendente') return 'warning'
