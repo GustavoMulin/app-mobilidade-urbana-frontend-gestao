@@ -105,8 +105,8 @@
                     :disable="lendo || enviando"
                     :rules="campo.rules"
                     :hint="campo.hint"
-                    :error="!!errors[`crlv.${campo.name}`]"
-                    :error-message="errors[`crlv.${campo.name}`]?.[0]"
+                    :error="!!errors[`informacoes_complementares.${campo.name}`]"
+                    :error-message="errors[`informacoes_complementares.${campo.name}`]?.[0]"
                     hide-bottom-space
                   />
                 </div>
@@ -363,15 +363,15 @@ function iniciar() {
   dados.value = Object.fromEntries(
     campos.map((c) => [
       c.name,
-      props.documento?.crlv?.[c.name] ??
-        props.documento?.veiculo?.[
-          c.name === 'categoria'
-            ? 'categoria_crlv'
-            : c.name === 'categoria_veiculo'
-              ? 'categoria'
-              : c.name
-        ] ??
-        '',
+      (Object.hasOwn(props.documento?.informacoes_complementares || {}, c.name)
+        ? props.documento.informacoes_complementares[c.name]
+        : props.documento?.veiculo?.[
+            c.name === 'categoria'
+              ? 'categoria_crlv'
+              : c.name === 'categoria_veiculo'
+                ? 'categoria'
+                : c.name
+          ]) ?? '',
     ]),
   )
 }
@@ -474,7 +474,8 @@ async function enviar() {
   form.append('motorista_id', props.motoristaId)
   form.append('tipo_documento', props.documento.tipo_documento)
   if (veiculoId.value) form.append('veiculo_id', veiculoId.value)
-  for (const [name, value] of Object.entries(dados.value)) form.append(`crlv[${name}]`, value ?? '')
+  for (const [name, value] of Object.entries(dados.value))
+    form.append(`informacoes_complementares[${name}]`, value ?? '')
   try {
     const response = await api.post('/motorista-documentos', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
