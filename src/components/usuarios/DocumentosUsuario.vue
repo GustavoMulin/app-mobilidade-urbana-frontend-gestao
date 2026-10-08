@@ -1,7 +1,14 @@
 <template>
   <section>
+    <SubirNadaConsta
+      v-if="documentoSelecionado.tipo_documento === 'nada_consta'"
+      @updated="onDocumentoUpdated"
+      v-model="dialog.envairArquivo"
+      :motorista-id="motoristaId"
+      :documento="documentoSelecionado"
+    />
     <SubirArquivo
-      v-if="!documentoSelecionado.possui_dados_crlv"
+      v-else-if="!documentoSelecionado.possui_dados_crlv"
       @updated="onDocumentoUpdated"
       v-model="dialog.envairArquivo"
       :motorista-id="motoristaId"
@@ -229,6 +236,7 @@ import CardPerfilUsuario from 'src/components/usuarios/CardPerfilUsuario.vue'
 import JanelaConfirmacao from 'src/components/JanelaConfirmacao.vue'
 import SubirArquivo from 'src/components/motorista/SubirArquivo.vue'
 import SubirCrlv from 'src/components/motorista/SubirCrlv.vue'
+import SubirNadaConsta from 'src/components/motorista/SubirNadaConsta.vue'
 import ReprovarDocumento from 'src/components/motorista/ReprovarDocumento.vue'
 
 const iconeExpandir = 'M14 4h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6z'
