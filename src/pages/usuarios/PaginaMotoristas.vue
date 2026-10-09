@@ -9,7 +9,12 @@
       v-model="dialog.documentos"
       @updated="onRequest"
     />
-    <MotoristaVeiculos :usuario="usuario" v-model="dialog.veiculos" />
+    <MotoristaVeiculos
+      :usuario="usuario"
+      :motorista-id="motoristaId"
+      v-model="dialog.veiculos"
+      @updated="onRequest"
+    />
     <ExcluirUsuario
       :acao="openPress"
       :data="usuarioSelecionado"
@@ -134,6 +139,7 @@
                   () => {
                     dialog.veiculos = true
                     usuario = props.row.user
+                    motoristaId = props.row.id
                   }
                 "
                 dense

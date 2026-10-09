@@ -167,7 +167,7 @@
                     v-if="
                       !carregandoDocumentos &&
                       !erroCarregamento &&
-                      visibilidadeBotoes(props.row.status, 'upload')
+                      visibilidadeBotoes(props.row.status, 'upload', props.row)
                     "
                     @click="abrirEnvio(props.row)"
                     :color="props.row.id ? 'black' : 'grey'"
@@ -175,10 +175,10 @@
                     round
                     dense
                     :aria-label="
-                      props.row.status === 'em_analise'
-                        ? 'Expandir documento'
-                        : props.row.status === 'reprovado'
-                          ? 'Reenviar documento'
+                      props.row.status === 'reprovado'
+                        ? 'Reenviar documento'
+                        : props.row.id
+                          ? 'Expandir documento'
                           : 'Enviar documento'
                     "
                   >
@@ -188,10 +188,10 @@
                     />
                     <q-tooltip transition-show="flip-right" transition-hide="flip-left">
                       {{
-                        props.row.status === 'em_analise'
-                          ? 'Expandir documento'
-                          : props.row.status === 'reprovado'
-                            ? 'Reenviar documento'
+                        props.row.status === 'reprovado'
+                          ? 'Reenviar documento'
+                          : props.row.id
+                            ? 'Expandir documento'
                             : 'Enviar arquivo'
                       }}
                     </q-tooltip>
@@ -201,19 +201,6 @@
             </q-tr>
           </template>
         </q-table>
-        <q-card-actions
-          v-if="veiculos.length && data.some((d) => d.possui_dados_crlv)"
-          align="right"
-        >
-          <q-btn
-            flat
-            color="primary"
-            icon="add"
-            label="Cadastrar veículo com CRLV"
-            :disable="carregandoDocumentos || erroCarregamento"
-            @click="abrirCadastroVeiculo"
-          />
-        </q-card-actions>
       </q-card>
     </q-dialog>
     <JanelaConfirmacao v-model="dialog.confirmacao" @confirm="mudarStatusDocumento('aprovado')">
@@ -296,16 +283,6 @@ function abrirEnvio(documento) {
   documentoSelecionado.value = documento
   dialog.value.envairArquivo = true
 }
-function abrirCadastroVeiculo() {
-  const tipo = data.value.find((d) => d.possui_dados_crlv)
-  if (!tipo) return
-  abrirEnvio({
-    tipo_documento: tipo.tipo_documento,
-    titulo: tipo.titulo,
-    descricao: tipo.descricao,
-    possui_dados_crlv: true,
-  })
-}
 
 function onBeforeHide() {
   documentosVersion++
@@ -314,7 +291,7 @@ function onBeforeHide() {
   erroCarregamento.value = false
 }
 
-function visibilidadeBotoes(status, tipo) {
+function visibilidadeBotoes(status, tipo, documento) {
   switch (tipo) {
     case 'reprovar':
       return status === 'em_analise' || status === 'aprovado'
@@ -322,6 +299,7 @@ function visibilidadeBotoes(status, tipo) {
       return status === 'em_analise' || status === 'reprovado'
 
     case 'upload':
+      if (documento?.possui_dados_crlv && documento.id) return true
       return !status || status === 'reprovado' || status === 'em_analise'
 
     default:

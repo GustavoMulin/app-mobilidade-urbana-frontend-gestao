@@ -30,8 +30,12 @@
               </div>
             </q-banner>
             <q-banner v-else class="bg-blue-1 q-mb-md" rounded>
-              Ao enviar o CRLV, o veículo será salvo e vinculado a este motorista. Ele aparecerá na
+              Ao enviar o CRLV, o veículo será salvo e vinculado ao motorista. Ele aparecerá na
               lista de veículos com o status em análise até a aprovação do documento.
+            </q-banner>
+            <q-banner v-if="!substituicaoPermitida" class="bg-amber-1 q-mb-md" rounded>
+              Pela regra do sistema, o CRLV só pode ser substituído quando seu exercício for
+              anterior a {{ anoAtual }}. O documento atual está disponível para consulta.
             </q-banner>
             <q-file
               v-model="arquivo"
@@ -43,7 +47,7 @@
               :display-value="anexoSalvoAtivo ? nomeSalvo : undefined"
               accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
               :max-file-size="2097152"
-              :disable="lendo || enviando"
+              :disable="lendo || enviando || !substituicaoPermitida"
               :rules="anexoSalvoAtivo ? undefined : [(v) => !!v || 'Selecione um arquivo']"
               :error="!!errors.arquivo"
               :error-message="errors.arquivo?.[0]"
@@ -63,7 +67,7 @@
                   color="grey-6"
                   icon="cancel"
                   aria-label="Remover documento atual"
-                  :disable="lendo || enviando"
+                  :disable="lendo || enviando || !substituicaoPermitida"
                   @click.stop.prevent="removerAnexo"
                   ><q-tooltip>Remover documento atual</q-tooltip></q-btn
                 ></template
@@ -103,6 +107,7 @@
                     :autogrow="campo.type === 'textarea'"
                     :maxlength="campo.maxlength"
                     :disable="lendo || enviando"
+                    :readonly="!substituicaoPermitida"
                     :rules="campo.rules"
                     :hint="campo.hint"
                     :error="!!errors[`informacoes_complementares.${campo.name}`]"
@@ -215,7 +220,9 @@
             type="submit"
             label="Enviar"
             :loading="enviando"
-            :disable="!arquivo || lendo || conferenciaInvalida"
+            :disable="
+              !arquivo || !motoristaId || lendo || conferenciaInvalida || !substituicaoPermitida
+            "
         /></q-card-actions>
       </q-form>
     </q-card>
@@ -231,6 +238,7 @@ import { compararCrlv, conferirDadosCrlv } from 'src/utils/crlv'
 const props = defineProps({
   modelValue: Boolean,
   motoristaId: [String, Number],
+  origem: { type: String, default: 'documentos' },
   documento: Object,
   veiculos: { type: Array, default: () => [] },
 })
@@ -250,6 +258,15 @@ const dados = ref({}),
 const editados = new Set()
 const extraidos = new Map()
 let controller
+const anoAtual = new Date().getFullYear()
+const substituicaoPermitida = computed(() => {
+  if (!props.documento?.id || !props.documento.veiculo_id || props.documento.status === 'reprovado')
+    return true
+  const exercicio = Number(
+    props.documento.informacoes_complementares?.exercicio ?? props.documento.veiculo?.exercicio,
+  )
+  return exercicio >= 1900 && exercicio < anoAtual
+})
 const veiculo = computed(
   () =>
     props.veiculos.find((v) => v.id === veiculoId.value) ||
@@ -381,7 +398,7 @@ function fechar() {
   arquivo.value = null
 }
 function removerAnexo() {
-  if (lendo.value || enviando.value) return
+  if (lendo.value || enviando.value || !substituicaoPermitida.value) return
   removido.value = true
   errors.value = {}
 }
@@ -466,13 +483,22 @@ function arquivoRejeitado(rejections) {
   })
 }
 async function enviar() {
-  if (!arquivo.value || lendo.value || enviando.value || conferenciaInvalida.value) return
+  if (
+    !arquivo.value ||
+    !props.motoristaId ||
+    lendo.value ||
+    enviando.value ||
+    conferenciaInvalida.value ||
+    !substituicaoPermitida.value
+  )
+    return
   enviando.value = true
   errors.value = {}
   const form = new FormData()
   form.append('arquivo', arquivo.value)
   form.append('motorista_id', props.motoristaId)
-  form.append('tipo_documento', props.documento.tipo_documento)
+  form.append('tipo_documento', props.documento?.tipo_documento || 'crlv')
+  form.append('origem', props.origem)
   if (veiculoId.value) form.append('veiculo_id', veiculoId.value)
   for (const [name, value] of Object.entries(dados.value))
     form.append(`informacoes_complementares[${name}]`, value ?? '')

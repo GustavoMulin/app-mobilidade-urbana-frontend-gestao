@@ -1,26 +1,35 @@
 <template>
   <section>
-    <AdicionarVeiculo
-      :usuario="usuario"
-      @onRequest="onRequest()"
+    <SubirCrlv
+      :motorista-id="motoristaId"
+      :documento="documentoSelecionado"
+      origem="veiculos"
+      @updated="atualizarAposCadastro"
       v-model="dialog"
-      @hide="reabrirPrincipal($event)"
+    />
+    <JanelaConfirmacao v-model="confirmarAprovacao" @confirm="aprovarCrlv">
+      Deseja realmente aprovar o CRLV deste veículo?
+    </JanelaConfirmacao>
+    <ReprovarDocumento
+      v-model="reprovarDocumento"
+      :documento="documentoSelecionado"
+      @updated="atualizarAposCadastro"
     />
     <q-dialog v-model="model" @before-show="beforeShow" @before-hide="onBeforeHide">
-      <q-card style="width: 600px; max-width: 95vw">
-        <q-toolbar>
-          <!-- <q-avatar rounded size="md" icon="directions_car" color="primary" text-color="white" /> -->
-          <q-toolbar-title>
-            Veículos do motorista
-            <!-- <span> Veículos do motorista </span> -->
+      <q-card class="motorista-veiculos-dialog" style="width: 800px; max-width: 95vw">
+        <q-toolbar class="items-start q-pa-md">
+          <q-toolbar-title class="motorista-veiculos-titulo q-pa-none">
+            <div class="text-subtitle1 text-weight-bold">Veículos do motorista</div>
+            <div class="text-caption text-weight-medium text-grey-7 q-mt-xs">
+              {{ usuario?.name }}
+            </div>
+            <div class="text-caption text-weight-medium text-grey-7">CPF: {{ usuario?.cpf }}</div>
           </q-toolbar-title>
 
-          <q-btn flat round dense icon="close" v-close-popup />
+          <q-btn flat round dense icon="close" aria-label="Fechar" v-close-popup />
         </q-toolbar>
 
         <q-separator />
-        <CardPerfilUsuario class="q-mt-sm" :usuario="usuario" />
-
         <q-card-section
           v-if="loading && !data.length"
           class="column items-center justify-center q-py-xl text-primary"
@@ -42,9 +51,9 @@
         </q-card-section>
         <q-card-section v-else-if="!data.length" class="text-center q-py-lg">
           <div class="text-grey-7">Nenhum veículo encontrado.</div>
-          <q-card-actions class="q-mt-md" align="center">
-            <q-btn color="primary" @click="abrirAdicionarVeiculo()" flat>ADICIONAR VEÍCULO</q-btn>
-          </q-card-actions>
+          <div v-if="!possuiVeiculoCadastrado" class="text-grey-7 q-mt-sm">
+            Cadastre o primeiro veículo na área de Documentos.
+          </div>
         </q-card-section>
 
         <q-card-section v-else>
@@ -53,34 +62,42 @@
               :rows="data"
               :columns="columns"
               row-key="id"
-              :pagination="pagination"
+              v-model:pagination="pagination"
               :loading="loading"
               @request="onRequest"
             >
               <template #top>
-                <q-space />
-                <q-input
-                  class="full-width"
-                  filled
-                  dense
-                  debounce="300"
-                  v-model="search"
-                  placeholder="Pesquisar"
-                  @keyup.enter="onRequest()"
-                >
-                  <template #before>
+                <div class="row items-center q-col-gutter-sm full-width">
+                  <div class="col-12 col-sm-auto">
                     <q-btn
                       icon="add_box"
                       label="ADICIONAR VEÍCULO"
                       color="primary"
+                      :disable="
+                        !motoristaId ||
+                        loading ||
+                        alterandoStatus ||
+                        erroCarregamento ||
+                        !possuiVeiculoCadastrado
+                      "
                       @click="abrirAdicionarVeiculo()"
                     />
-                  </template>
-
-                  <template v-if="search" #append>
-                    <q-icon name="close" class="cursor-pointer" @click="clearSearch" />
-                  </template>
-                </q-input>
+                  </div>
+                  <div class="col-12 col-sm">
+                    <q-input
+                      filled
+                      dense
+                      debounce="300"
+                      v-model="search"
+                      placeholder="Pesquisar"
+                      @keyup.enter="onRequest()"
+                    >
+                      <template v-if="search" #append>
+                        <q-icon name="close" class="cursor-pointer" @click="clearSearch" />
+                      </template>
+                    </q-input>
+                  </div>
+                </div>
               </template>
 
               <template #body="props">
@@ -115,7 +132,42 @@
                   </q-td>
 
                   <q-td key="acoes" align="center">
-                    <q-btn dense flat icon="visibility">
+                    <q-btn
+                      v-if="
+                        props.row.veiculo.ultimo_crlv &&
+                        ['em_analise', 'aprovado'].includes(props.row.veiculo.status)
+                      "
+                      dense
+                      flat
+                      icon="close"
+                      color="negative"
+                      aria-label="Reprovar CRLV"
+                      :disable="loading || alterandoStatus"
+                      @click="abrirReprovacao(props.row)"
+                      ><q-tooltip>Reprovar CRLV</q-tooltip></q-btn
+                    >
+                    <q-btn
+                      v-if="
+                        props.row.veiculo.ultimo_crlv &&
+                        ['em_analise', 'reprovado'].includes(props.row.veiculo.status)
+                      "
+                      dense
+                      flat
+                      icon="done"
+                      color="positive"
+                      aria-label="Aprovar CRLV"
+                      :disable="loading || alterandoStatus"
+                      @click="abrirConfirmacaoAprovacao(props.row)"
+                      ><q-tooltip>Aprovar CRLV</q-tooltip></q-btn
+                    >
+                    <q-btn
+                      dense
+                      flat
+                      icon="visibility"
+                      aria-label="Visualizar CRLV"
+                      :disable="loading || alterandoStatus"
+                      @click="abrirDocumento(props.row)"
+                    >
                       <q-tooltip transition-show="flip-right" transition-hide="flip-left">
                         visualizar
                       </q-tooltip>
@@ -141,8 +193,10 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import AdicionarVeiculo from 'src/components/motorista/AdicionarVeiculo.vue'
-import CardPerfilUsuario from 'src/components/usuarios/CardPerfilUsuario.vue'
+import SubirCrlv from 'src/components/motorista/SubirCrlv.vue'
+import JanelaConfirmacao from 'src/components/JanelaConfirmacao.vue'
+import ReprovarDocumento from 'src/components/motorista/ReprovarDocumento.vue'
+import { useQuasar } from 'quasar'
 
 // import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
@@ -152,10 +206,11 @@ import { formatarStatus } from 'src/utils/status'
 const props = defineProps({
   modelValue: Boolean,
   usuario: [Object],
+  motoristaId: [String, Number],
 })
 
 // EMITS
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'updated'])
 
 // const $q = useQuasar()
 
@@ -168,6 +223,12 @@ const model = computed({
 // STATE
 const loading = ref(false)
 const erroCarregamento = ref(false)
+const possuiVeiculoCadastrado = ref(false)
+const documentoSelecionado = ref(null)
+const confirmarAprovacao = ref(false)
+const reprovarDocumento = ref(false)
+const alterandoStatus = ref(false)
+const $q = useQuasar()
 let requestVersion = 0
 const search = ref('')
 const dialog = ref(false)
@@ -176,6 +237,7 @@ const data = ref([])
 const pagination = ref({
   page: 1,
   rowsPerPage: 10,
+  rowsNumber: 0,
 })
 
 const columns = [
@@ -210,6 +272,9 @@ const columns = [
 // LIFECYCLE
 function beforeShow() {
   data.value = []
+  possuiVeiculoCadastrado.value = false
+  search.value = ''
+  pagination.value.page = 1
   request()
 }
 
@@ -220,17 +285,61 @@ function onBeforeHide() {
   data.value = []
 }
 
-function reabrirPrincipal(valor) {
-  console.log(valor, 'passou em reabrirPrincipal')
-  if (!valor) {
-    model.value = true
+function abrirAdicionarVeiculo() {
+  if (!props.motoristaId || loading.value || !possuiVeiculoCadastrado.value) return
+  documentoSelecionado.value = null
+  dialog.value = true
+}
+
+function selecionarDocumento(row) {
+  documentoSelecionado.value = {
+    ...row.veiculo.ultimo_crlv,
+    tipo_documento: 'crlv',
+    titulo: 'VEÍCULO - CRLV',
+    veiculo_id: row.veiculo.id,
+    veiculo: row.veiculo,
   }
 }
 
-function abrirAdicionarVeiculo() {
-  console.log('abrirAdicionarVeiculo')
-  model.value = false
+function abrirReprovacao(row) {
+  selecionarDocumento(row)
+  reprovarDocumento.value = true
+}
+
+function abrirConfirmacaoAprovacao(row) {
+  selecionarDocumento(row)
+  confirmarAprovacao.value = true
+}
+
+function abrirDocumento(row) {
+  selecionarDocumento(row)
   dialog.value = true
+}
+
+async function aprovarCrlv() {
+  if (!documentoSelecionado.value?.id || alterandoStatus.value) return
+  alterandoStatus.value = true
+  try {
+    const response = await api.put(`/mudar-status-documento/${documentoSelecionado.value.id}`, {
+      status: 'aprovado',
+    })
+    $q.notify({ type: 'positive', message: response.data.message })
+    await atualizarAposCadastro()
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: error.response?.data?.message || 'Não foi possível aprovar o CRLV.',
+    })
+  } finally {
+    alterandoStatus.value = false
+  }
+}
+
+async function atualizarAposCadastro() {
+  search.value = ''
+  pagination.value.page = 1
+  emit('updated')
+  await request()
 }
 
 const badgeColor = (status) => {
@@ -254,13 +363,13 @@ function clearSearch() {
 }
 
 const request = async (payload) => {
-  if (!props?.usuario?.id) return
+  if (!props.motoristaId) return
   const version = ++requestVersion
   loading.value = true
   erroCarregamento.value = false
   const { page, rowsPerPage } = payload?.pagination || pagination.value
   try {
-    const response = await api.get(`/motorista-veiculos/${props.usuario?.id}`, {
+    const response = await api.get(`/motorista-veiculos/${props.motoristaId}`, {
       params: {
         search: search.value || '',
         page: page,
@@ -271,6 +380,8 @@ const request = async (payload) => {
 
     if (version !== requestVersion) return
     data.value = response.data.data
+    possuiVeiculoCadastrado.value =
+      response.data.possui_veiculo_cadastrado ?? response.data.total > 0
 
     const paginate = response.data
     pagination.value.rowsNumber = paginate.total
@@ -287,6 +398,9 @@ const request = async (payload) => {
 }
 </script>
 <style scoped>
+.motorista-veiculos-titulo {
+  white-space: normal;
+}
 .estilo-coluna {
   max-width: 200px;
   white-space: normal;
