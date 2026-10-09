@@ -24,13 +24,28 @@
             <q-badge color="red" text-color="white" floating> 2 </q-badge>
             <q-tooltip>Notifications</q-tooltip>
           </q-btn>
-          <q-btn round flat>
-            <q-avatar v-if="user?.foto_thumbnail" size="26px">
-              <img :src="user?.foto_thumbnail" />
+          <q-btn round flat aria-label="Conta do gestor">
+            <q-avatar v-if="user?.foto" size="26px">
+              <img :src="user.foto" />
             </q-avatar>
             <q-avatar v-else color="primary" text-color="white">
-              {{ user.name.substr(0, 1) }}
+              {{ user?.name?.charAt(0) }}
             </q-avatar>
+            <q-menu>
+              <q-list style="min-width: 200px">
+                <q-item>
+                  <q-item-section>
+                    <q-item-label class="text-weight-bold">{{ user?.name }}</q-item-label>
+                    <q-item-label caption>{{ user?.email }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+                <q-separator />
+                <q-item clickable role="button" :disable="saindo" @click="logout" v-close-popup>
+                  <q-item-section avatar><q-icon name="logout" /></q-item-section>
+                  <q-item-section>Sair</q-item-section>
+                </q-item>
+              </q-list>
+            </q-menu>
           </q-btn>
         </div>
       </q-toolbar>
@@ -133,7 +148,7 @@
 
           <q-separator class="q-my-md" />
 
-          <q-item v-ripple clickable>
+          <q-item v-ripple clickable :disable="saindo" @click="logout">
             <q-item-section avatar>
               <q-icon color="grey" name="exit_to_app" />
             </q-item-section>
@@ -155,6 +170,7 @@
 import { fabYoutube } from '@quasar/extras/fontawesome-v6'
 import { useAuthStore } from 'src/stores/auth'
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 export default {
   name: 'MyLayout',
 
@@ -168,9 +184,26 @@ export default {
 
     const authStore = useAuthStore()
     const user = computed(() => authStore.user)
+    const router = useRouter()
+    const saindo = ref(false)
+
+    async function logout() {
+      if (saindo.value) return
+      saindo.value = true
+      try {
+        await authStore.logout()
+      } catch {
+        // O estado local é limpo mesmo se o servidor estiver indisponível.
+      } finally {
+        saindo.value = false
+        await router.replace('/login')
+      }
+    }
 
     return {
       user,
+      saindo,
+      logout,
       fabYoutube,
       leftDrawerOpen,
       search,
@@ -178,6 +211,7 @@ export default {
 
       links1: [
         { icon: 'groups_2', text: 'Usuarios', to: '/usuarios' },
+        { icon: 'manage_accounts', text: 'Gestores', to: '/gestores' },
         { icon: 'directions_car', text: 'Veículos', to: '/veiculos' },
         { icon: 'group', text: 'Motoristas', to: '/motoristas' },
         { icon: 'groups_2', text: 'Passageiros', to: '/passageiros' },
