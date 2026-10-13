@@ -5,15 +5,7 @@
         <q-toolbar-title class="text-weight-bold">{{
           documento?.status === 'reprovado' ? 'Reenviar CRLV' : 'CRLV do veículo'
         }}</q-toolbar-title>
-        <q-btn
-          flat
-          round
-          dense
-          icon="close"
-          aria-label="Fechar"
-          :disable="enviando"
-          v-close-popup
-        />
+        <q-btn flat round dense icon="close" aria-label="Fechar" :disable="ocupado" v-close-popup />
       </q-toolbar>
       <q-separator />
       <q-form @submit.prevent="enviar">
@@ -47,7 +39,7 @@
               :display-value="anexoSalvoAtivo ? nomeSalvo : undefined"
               accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
               :max-file-size="2097152"
-              :disable="lendo || enviando || !substituicaoPermitida"
+              :disable="lendo || ocupado || !substituicaoPermitida"
               :rules="anexoSalvoAtivo ? undefined : [(v) => !!v || 'Selecione um arquivo']"
               :error="!!errors.arquivo"
               :error-message="errors.arquivo?.[0]"
@@ -67,7 +59,7 @@
                   color="grey-6"
                   icon="cancel"
                   aria-label="Remover documento atual"
-                  :disable="lendo || enviando || !substituicaoPermitida"
+                  :disable="lendo || ocupado || !substituicaoPermitida"
                   @click.stop.prevent="removerAnexo"
                   ><q-tooltip>Remover documento atual</q-tooltip></q-btn
                 ></template
@@ -106,7 +98,7 @@
                     :stack-label="campo.type === 'date'"
                     :autogrow="campo.type === 'textarea'"
                     :maxlength="campo.maxlength"
-                    :disable="lendo || enviando"
+                    :disable="lendo || ocupado"
                     :readonly="!substituicaoPermitida"
                     :rules="campo.rules"
                     :hint="campo.hint"
@@ -214,27 +206,42 @@
           </section>
         </div>
         <q-separator />
-        <q-card-actions align="right" class="q-pa-md"
-          ><q-btn flat label="Cancelar" :disable="enviando" v-close-popup /><q-btn
+        <q-card-actions align="right" class="q-pa-md">
+          <AcoesAnaliseDocumento
+            :documento="documento"
+            v-model:loading="analisando"
+            :disable="ocupado || lendo || removido || !!arquivo || editados.size > 0"
+            @updated="onAnaliseUpdated"
+          />
+          <q-space />
+          <q-btn flat label="Cancelar" :disable="ocupado" v-close-popup />
+          <q-btn
             color="primary"
             type="submit"
             label="Enviar"
             :loading="enviando"
             :disable="
-              !arquivo || !motoristaId || lendo || conferenciaInvalida || !substituicaoPermitida
+              ocupado ||
+              !arquivo ||
+              !motoristaId ||
+              lendo ||
+              conferenciaInvalida ||
+              !substituicaoPermitida
             "
-        /></q-card-actions>
+          />
+        </q-card-actions>
       </q-form>
     </q-card>
   </q-dialog>
 </template>
 
 <script setup>
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, reactive, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { extrairCrlv } from 'src/utils/extrairCrlv'
 import { compararCrlv, conferirDadosCrlv } from 'src/utils/crlv'
+import AcoesAnaliseDocumento from 'src/components/motorista/AcoesAnaliseDocumento.vue'
 const props = defineProps({
   modelValue: Boolean,
   motoristaId: [String, Number],
@@ -255,7 +262,9 @@ const dados = ref({}),
   errors = ref({}),
   progresso = ref('Lendo o CRLV…'),
   urlLocal = ref('')
-const editados = new Set()
+const analisando = ref(false)
+const ocupado = computed(() => enviando.value || analisando.value)
+const editados = reactive(new Set())
 const extraidos = new Map()
 let controller
 const anoAtual = new Date().getFullYear()
@@ -398,7 +407,7 @@ function fechar() {
   arquivo.value = null
 }
 function removerAnexo() {
-  if (lendo.value || enviando.value || !substituicaoPermitida.value) return
+  if (lendo.value || ocupado.value || !substituicaoPermitida.value) return
   removido.value = true
   errors.value = {}
 }
@@ -487,7 +496,7 @@ async function enviar() {
     !arquivo.value ||
     !props.motoristaId ||
     lendo.value ||
-    enviando.value ||
+    ocupado.value ||
     conferenciaInvalida.value ||
     !substituicaoPermitida.value
   )
@@ -518,6 +527,11 @@ async function enviar() {
   } finally {
     enviando.value = false
   }
+}
+
+function onAnaliseUpdated() {
+  emit('updated')
+  model.value = false
 }
 </script>
 

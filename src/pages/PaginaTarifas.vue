@@ -1,8 +1,7 @@
 <template>
   <q-page class="q-pa-md">
     <!-- <CriarVeiculo @onRequest="onRequest" v-model="dialog.criar" /> -->
-    <EditarVeiculo @updated="onRequest" v-model="dialog.editar" :veiculoId="veiculoId" />
-    <MostrarVeiculo v-model="dialog.mostrar" />
+    <VisualizarRegistro v-model="dialog.mostrar" tipo="tarifa" :registro="registroVisualizado" />
     <ExcluirVeiculo
       :acao="openPress"
       :data="usuarioSelecionado"
@@ -68,7 +67,13 @@
             </q-td>
 
             <q-td key="acoes" align="center">
-              <q-btn @click="openEditar(props.row.id)" dense flat icon="arrow_forward_ios">
+              <q-btn
+                @click="openVisualizar(props.row)"
+                dense
+                flat
+                icon="arrow_forward_ios"
+                aria-label="Visualizar registro"
+              >
                 <q-tooltip transition-show="flip-right" transition-hide="flip-left">
                   visualizar
                 </q-tooltip>
@@ -88,8 +93,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { api } from 'boot/axios'
 // import CriarVeiculo from 'src/components/veiculos/CriarVeiculo.vue'
-import MostrarVeiculo from 'src/components/veiculos/MostrarVeiculo.vue'
-import EditarVeiculo from 'src/components/veiculos/EditarVeiculo.vue'
+import VisualizarRegistro from 'src/components/VisualizarRegistro.vue'
 import ExcluirVeiculo from 'src/components/veiculos/ExcluirVeiculo.vue'
 
 // STATES
@@ -109,7 +113,7 @@ const dialog = reactive({
   excluir: false,
 })
 
-const veiculoId = ref(null)
+const registroVisualizado = ref(null)
 
 const pagination = ref({
   page: 1,
@@ -147,9 +151,9 @@ const clearSearch = () => {
   buscarDados()
 }
 
-const openEditar = (id) => {
-  veiculoId.value = id
-  dialog.editar = true
+const openVisualizar = (registro) => {
+  registroVisualizado.value = registro
+  dialog.mostrar = true
 }
 
 const buscarDados = async (props) => {
