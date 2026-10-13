@@ -43,54 +43,20 @@
           <div class="col-md-6 col-12 q-px-md q-py-sm">
             <q-input dense outlined v-model="veiculo.renavam" label="Renavam *" />
           </div>
-
           <div class="col-md-6 col-12 q-px-md q-py-sm">
-            <q-select
-              dense
-              outlined
-              v-model="veiculo.categoria"
-              :options="OPCOES_CATEGORIA"
-              emit-value
-              map-options
-              label="Tipo de veículo *"
-            />
+            <q-input dense outlined v-model="veiculo.chassi" label="Chassi" maxlength="17" />
           </div>
 
           <div class="col-md-6 col-12 q-px-md q-py-sm">
-            <q-select
-              dense
-              outlined
-              v-model="veiculo.uf"
-              :options="OPCOES_UF"
-              emit-value
-              map-options
-              label="UF *"
-            />
+            <q-input dense outlined v-model="veiculo.categoria" label="Categoria *" />
           </div>
 
           <div class="col-md-6 col-12 q-px-md q-py-sm">
-            <q-select
-              dense
-              outlined
-              v-model="veiculo.status"
-              :options="OPCOES_STATUS"
-              emit-value
-              map-options
-              label="Status *"
-            />
+            <q-input dense outlined v-model="veiculo.uf" label="UF *" />
           </div>
 
-          <div class="col-12 q-px-md q-py-sm">
-            <div class="text-subtitle2">Categorias especiais</div>
-            <div class="text-caption text-grey-7">
-              Criado pela gestão, o veículo já sai aprovado nas categorias marcadas.
-            </div>
-            <q-toggle
-              v-model="veiculo.eletrico"
-              :disable="veiculo.categoria === 'moto'"
-              label="Elétrico (só carro)"
-            />
-            <q-toggle v-model="veiculo.taxi" label="Táxi" />
+          <div class="col-md-6 col-12 q-px-md q-py-sm">
+            <q-input dense outlined v-model="veiculo.status" label="Status *" />
           </div>
         </div>
 
@@ -141,22 +107,6 @@ const model = computed({
   set: (val) => emit('update:modelValue', val),
 })
 
-const OPCOES_UF = [
-  'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA',
-  'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO',
-]
-
-const OPCOES_STATUS = [
-  { label: 'Aprovado', value: 'aprovado' },
-  { label: 'Em análise', value: 'em_analise' },
-  { label: 'Reprovado', value: 'reprovado' },
-]
-
-const OPCOES_CATEGORIA = [
-  { label: 'Carro', value: 'carro' },
-  { label: 'Moto', value: 'moto' },
-]
-
 // STATE
 const veiculo = reactive({
   marca: '',
@@ -166,9 +116,8 @@ const veiculo = reactive({
   cor: '',
   placa: '',
   renavam: '',
-  categoria: 'carro',
-  eletrico: false,
-  taxi: false,
+  chassi: '',
+  categoria: '',
   status: '',
   uf: '',
 })
@@ -188,10 +137,8 @@ function preecherDados() {
     cor: 'preto',
     placa: 'GCH9110',
     renavam: '99231234567',
-    categoria: 'carro',
-    eletrico: false,
-    taxi: false,
-    status: 'aprovado',
+    categoria: 'negocia',
+    status: 'ativo',
     uf: 'RO',
   })
 }
@@ -209,9 +156,8 @@ function limparForm() {
     cor: '',
     placa: '',
     renavam: '',
-    categoria: 'carro',
-    eletrico: false,
-    taxi: false,
+    chassi: '',
+    categoria: '',
     status: '',
     uf: '',
   })
@@ -229,10 +175,8 @@ async function create() {
       cor: veiculo.cor,
       placa: veiculo.placa,
       renavam: veiculo.renavam,
+      chassi: veiculo.chassi.trim().toUpperCase() || null,
       categoria: veiculo.categoria,
-      // não existe moto elétrica
-      eletrico: veiculo.categoria === 'carro' && veiculo.eletrico,
-      taxi: veiculo.taxi,
       status: veiculo.status,
       uf: veiculo.uf,
     })
@@ -243,11 +187,10 @@ async function create() {
     console.log(err, 'err')
     model.value = false
     loading.value = false
-    $q.notify({ type: 'negative', message: err.response?.data?.message ?? err.message })
+    $q.notify({ type: 'negative', message: err.message })
   } finally {
     loading.value = false
     model.value = false
   }
 }
 </script>
-

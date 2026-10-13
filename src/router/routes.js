@@ -26,6 +26,11 @@ const routes = [
       },
 
       {
+        path: 'gestores',
+        component: () => import('src/pages/usuarios/PaginaGestores.vue'),
+      },
+
+      {
         path: 'motoristas',
         component: () =>
           import('src/pages/usuarios/PaginaMotoristas.vue'),
@@ -65,6 +70,11 @@ const routes = [
         path: 'produto-categorias',
         component: () =>
           import('src/pages/PaginaProdutoCategorias.vue'),
+      },
+      {
+        path: 'publicidades',
+        component: () =>
+          import('src/pages/midias/PaginaMidias.vue'),
       },
     ],
   },
