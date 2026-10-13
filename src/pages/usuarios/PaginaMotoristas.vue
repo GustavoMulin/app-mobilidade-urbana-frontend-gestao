@@ -96,11 +96,10 @@
                     {{ props.row.user?.name?.charAt(0) }}
                   </q-avatar>
                   <q-badge
-                    v-if="props.row.status"
                     class="q-mt-sm"
                     :color="badgeColor(props.row.status)"
                   >
-                    {{ formatarStatus(props.row.status) }}
+                    {{ props.row.status === 'ativo' ? 'Ativo' : 'Pendente' }}
                   </q-badge>
                 </q-item-section>
 
@@ -177,7 +176,6 @@ import EditarUsuario from 'src/components/usuarios/EditarUsuario.vue'
 import ExcluirUsuario from 'src/components/usuarios/ExcluirUsuario.vue'
 import DocumentosUsuario from 'src/components/usuarios/DocumentosUsuario.vue'
 import MotoristaVeiculos from 'src/components/motorista/MotoristaVeiculos.vue'
-import { formatarStatus } from 'src/utils/status'
 
 // STATES
 const usuarios = ref({
@@ -217,10 +215,7 @@ const columns = [
 ]
 
 const badgeColor = (status) => {
-  if (status === 'aprovado') return 'green'
-  if (status === 'suspenso') return 'orange'
-  if (status === 'banido') return 'red'
-  if (status === 'pendente') return 'warning'
+  return status === 'ativo' ? 'green' : 'warning'
 }
 
 // const toggleGrid = () => {
