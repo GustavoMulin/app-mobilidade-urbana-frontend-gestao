@@ -1,6 +1,6 @@
 <template>
   <q-page class="q-pa-md">
-    <CriarMotorista @created="onRequest" v-model="dialog.cadastrar" />
+    <CriarUsuario tipoUsuario="motorista" @created="onRequest" v-model="dialog.cadastrar" />
     <EditarUsuario @updated="onRequest" v-model="dialog.editar" :usuarioId="usuarioId" />
     <MostrarUsuario v-model="dialog.visualizar" />
     <DocumentosUsuario
@@ -89,23 +89,27 @@
             <q-td key="motorista">
               <q-item>
                 <q-item-section top avatar>
-                  <q-avatar v-if="props.row.user.foto_thumbnail">
-                    <img :src="props.row.user.foto" />
+                  <q-avatar v-if="props.row.foto">
+                    <img :src="props.row.foto" />
                   </q-avatar>
                   <q-avatar v-else color="primary" text-color="white">
-                    {{ props.row.user.name.substr(0, 1) }}
+                    {{ props.row.user?.name?.charAt(0) }}
                   </q-avatar>
-                  <q-badge class="q-mt-sm" :color="badgeColor(props.row.user.status)">
-                    {{ props.row.user.status }}
+                  <q-badge
+                    v-if="props.row.status"
+                    class="q-mt-sm"
+                    :color="badgeColor(props.row.status)"
+                  >
+                    {{ formatarStatus(props.row.status) }}
                   </q-badge>
                 </q-item-section>
 
                 <q-item-section>
                   <q-item-label class="text-bold"> {{ props.row.user.name }}</q-item-label>
                   <q-item-label class="estilo-coluna">
-                    {{ props.row.user.email }}
+                    <div v-if="props.row.email">{{ props.row.email }}</div>
                     <div>CPF: {{ props.row.user.cpf }}</div>
-                    <div>TEL: {{ props.row.user.telefone }}</div>
+                    <div v-if="props.row.telefone">TEL: {{ props.row.telefone }}</div>
                   </q-item-label>
                 </q-item-section>
               </q-item>
@@ -167,12 +171,13 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { api } from 'boot/axios'
-import CriarMotorista from 'src/components/motorista/CriarMotorista.vue'
+import CriarUsuario from 'src/components/usuarios/CriarUsuario.vue'
 import MostrarUsuario from 'src/components/usuarios/MostrarUsuario.vue'
 import EditarUsuario from 'src/components/usuarios/EditarUsuario.vue'
 import ExcluirUsuario from 'src/components/usuarios/ExcluirUsuario.vue'
 import DocumentosUsuario from 'src/components/usuarios/DocumentosUsuario.vue'
 import MotoristaVeiculos from 'src/components/motorista/MotoristaVeiculos.vue'
+import { formatarStatus } from 'src/utils/status'
 
 // STATES
 const usuarios = ref({
@@ -215,6 +220,7 @@ const badgeColor = (status) => {
   if (status === 'aprovado') return 'green'
   if (status === 'suspenso') return 'orange'
   if (status === 'banido') return 'red'
+  if (status === 'pendente') return 'warning'
 }
 
 // const toggleGrid = () => {

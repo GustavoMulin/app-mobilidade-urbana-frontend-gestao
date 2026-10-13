@@ -1,6 +1,6 @@
 <template>
   <q-page class="q-pa-md">
-    <CriarUsuario @created="onRequest" v-model="dialog.cadastrar" />
+    <CriarUsuario tipoUsuario="usuario" @created="onRequest" v-model="dialog.cadastrar" />
     <EditarUsuario @updated="onRequest" v-model="dialog.editar" :usuarioId="usuarioId" />
     <MostrarUsuario v-model="dialog.visualizar" />
     <DocumentosUsuario :usuarioId="usuarioId" v-model="dialog.documentos" />
@@ -40,13 +40,13 @@
             @keyup.enter="request"
           >
             <template #before>
-              <q-btn
+              <!-- <q-btn
                 icon="person_add_alt"
                 color="primary"
                 @click="dialog.cadastrar = true"
                 label="CRIAR USUÁRIO"
                 class="q-mr-sm"
-              />
+              /> -->
               <q-btn-toggle
                 class="q-mr-sm"
                 @update:model-value="
@@ -83,7 +83,7 @@
                   <q-spinner-hourglass />
                 </template>
               </q-btn>
-              <!-- 
+              <!--
               <q-btn
                 @click=";(dialog.documentos = true), (usuarioId = props.row.id)"
                 flat
@@ -120,9 +120,7 @@
 
                 <q-item-section>
                   <q-item-label>{{ props.row.name }}</q-item-label>
-                  <q-item-label caption>
-                    CPF: {{ props.row.cpf }}
-                  </q-item-label>
+                  <q-item-label caption> CPF: {{ props.row.cpf }} </q-item-label>
                 </q-item-section>
               </q-item>
             </q-card>
@@ -191,7 +189,7 @@ const openExcluir = (usuario) => {
 
 const request = async (props) => {
   loading.value = true
-  const { page, rowsPerPage } = props ? props.pagination : pagination
+  const { page, rowsPerPage } = props?.pagination || pagination.value
   try {
     const response = await api.get(`${dominio.value}`, {
       params: {
