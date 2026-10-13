@@ -1,7 +1,6 @@
 <template>
   <q-page class="q-pa-md">
-    <EditarVeiculo @updated="onRequest" v-model="dialog.editar" :veiculoId="veiculoId" />
-    <MostrarVeiculo v-model="dialog.mostrar" />
+    <MostrarVeiculo v-model="dialog.mostrar" :veiculo-id="veiculoId" />
     <ExcluirVeiculo
       :acao="openPress"
       :data="usuarioSelecionado"
@@ -67,7 +66,13 @@
             </q-td>
 
             <q-td key="acoes" align="center">
-              <q-btn @click="openEditar(props.row.id)" dense flat icon="visibility">
+              <q-btn
+                @click="openVisualizar(props.row.id)"
+                dense
+                flat
+                icon="visibility"
+                aria-label="Visualizar registro"
+              >
                 <q-tooltip transition-show="flip-right" transition-hide="flip-left">
                   visualizar
                 </q-tooltip>
@@ -105,7 +110,6 @@ import { ref, reactive, onMounted } from 'vue'
 import { api } from 'boot/axios'
 import { formatarStatus } from 'src/utils/status'
 import MostrarVeiculo from 'src/components/veiculos/MostrarVeiculo.vue'
-import EditarVeiculo from 'src/components/veiculos/EditarVeiculo.vue'
 import ExcluirVeiculo from 'src/components/veiculos/ExcluirVeiculo.vue'
 
 // STATES
@@ -166,9 +170,9 @@ const clearSearch = () => {
   buscarDados()
 }
 
-const openEditar = (id) => {
+const openVisualizar = (id) => {
   veiculoId.value = id
-  dialog.editar = true
+  dialog.mostrar = true
 }
 
 const openExcluir = (usuario) => {

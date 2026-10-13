@@ -1,11 +1,13 @@
 <template>
   <q-page class="q-pa-md">
     <CriarUsuario v-model="dialogCadastrar" tipoUsuario="gestor" @created="gestorSalvo" />
-    <FormularioGestor
-      v-model="dialogFormulario"
-      :gestor-id="gestorId"
-      :visualizar="visualizar"
-      @saved="gestorSalvo"
+    <FormularioGestor v-model="dialogFormulario" :gestor-id="gestorId" @saved="gestorSalvo" />
+    <MostrarUsuario
+      v-model="dialogVisualizar"
+      tipoUsuario="gestor"
+      :usuario-id="gestorId"
+      :registro="registroVisualizado"
+      @updated="gestorSalvo"
     />
     <q-dialog v-model="dialogConfirmacao" :persistent="processando">
       <q-card style="width: 400px; max-width: 95vw">
@@ -153,6 +155,7 @@ import { useAuthStore } from 'src/stores/auth'
 import CardPerfilGestor from 'src/components/gestores/CardPerfilGestor.vue'
 import FormularioGestor from 'src/components/gestores/FormularioGestor.vue'
 import CriarUsuario from 'src/components/usuarios/CriarUsuario.vue'
+import MostrarUsuario from 'src/components/usuarios/MostrarUsuario.vue'
 
 const $q = useQuasar()
 const authStore = useAuthStore()
@@ -164,7 +167,8 @@ const erroLista = ref('')
 const dialogFormulario = ref(false)
 const dialogCadastrar = ref(false)
 const gestorId = ref(null)
-const visualizar = ref(false)
+const dialogVisualizar = ref(false)
+const registroVisualizado = ref(null)
 const dialogConfirmacao = ref(false)
 const selecionado = ref(null)
 const processando = ref(false)
@@ -182,8 +186,9 @@ function abrirFormulario(gestor = null, leitura = false) {
     return
   }
   gestorId.value = gestor?.id || null
-  visualizar.value = leitura
-  dialogFormulario.value = true
+  registroVisualizado.value = gestor
+  if (leitura) dialogVisualizar.value = true
+  else dialogFormulario.value = true
 }
 function abrirConfirmacao(gestor) {
   selecionado.value = gestor

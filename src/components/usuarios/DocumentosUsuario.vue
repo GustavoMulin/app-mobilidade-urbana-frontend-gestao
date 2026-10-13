@@ -175,7 +175,7 @@
                     round
                     dense
                     :aria-label="
-                      props.row.status === 'reprovado'
+                      !props.row.id && props.row.status === 'reprovado'
                         ? 'Reenviar documento'
                         : props.row.id
                           ? 'Expandir documento'
@@ -188,7 +188,7 @@
                     />
                     <q-tooltip transition-show="flip-right" transition-hide="flip-left">
                       {{
-                        props.row.status === 'reprovado'
+                        !props.row.id && props.row.status === 'reprovado'
                           ? 'Reenviar documento'
                           : props.row.id
                             ? 'Expandir documento'
@@ -299,7 +299,7 @@ function visibilidadeBotoes(status, tipo, documento) {
       return status === 'em_analise' || status === 'reprovado'
 
     case 'upload':
-      if (documento?.possui_dados_crlv && documento.id) return true
+      if (documento?.id) return true
       return !status || status === 'reprovado' || status === 'em_analise'
 
     default:
