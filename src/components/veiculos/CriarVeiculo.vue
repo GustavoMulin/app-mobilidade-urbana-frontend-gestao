@@ -43,6 +43,9 @@
           <div class="col-md-6 col-12 q-px-md q-py-sm">
             <q-input dense outlined v-model="veiculo.renavam" label="Renavam *" />
           </div>
+          <div class="col-md-6 col-12 q-px-md q-py-sm">
+            <q-input dense outlined v-model="veiculo.chassi" label="Chassi" maxlength="17" />
+          </div>
 
           <div class="col-md-6 col-12 q-px-md q-py-sm">
             <q-input dense outlined v-model="veiculo.categoria" label="Categoria *" />
@@ -113,6 +116,7 @@ const veiculo = reactive({
   cor: '',
   placa: '',
   renavam: '',
+  chassi: '',
   categoria: '',
   status: '',
   uf: '',
@@ -152,6 +156,7 @@ function limparForm() {
     cor: '',
     placa: '',
     renavam: '',
+    chassi: '',
     categoria: '',
     status: '',
     uf: '',
@@ -170,6 +175,7 @@ async function create() {
       cor: veiculo.cor,
       placa: veiculo.placa,
       renavam: veiculo.renavam,
+      chassi: veiculo.chassi.trim().toUpperCase() || null,
       categoria: veiculo.categoria,
       status: veiculo.status,
       uf: veiculo.uf,
@@ -188,4 +194,3 @@ async function create() {
   }
 }
 </script>
-

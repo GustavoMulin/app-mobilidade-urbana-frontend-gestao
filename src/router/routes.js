@@ -26,6 +26,11 @@ const routes = [
       },
 
       {
+        path: 'gestores',
+        component: () => import('src/pages/usuarios/PaginaGestores.vue'),
+      },
+
+      {
         path: 'motoristas',
         component: () =>
           import('src/pages/usuarios/PaginaMotoristas.vue'),

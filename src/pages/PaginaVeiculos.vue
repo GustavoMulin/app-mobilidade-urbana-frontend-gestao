@@ -1,6 +1,5 @@
 <template>
   <q-page class="q-pa-md">
-    <CriarVeiculo @onRequest="onRequest" v-model="dialog.criar" />
     <EditarVeiculo @updated="onRequest" v-model="dialog.editar" :veiculoId="veiculoId" />
     <MostrarVeiculo v-model="dialog.mostrar" />
     <ExcluirVeiculo
@@ -14,7 +13,7 @@
         :rows="data"
         :columns="columns"
         row-key="id"
-        :pagination="pagination"
+        v-model:pagination="pagination"
         :grid="grid"
         :loading="loading"
         @request="onRequest"
@@ -32,15 +31,6 @@
             placeholder="Pesquisar"
             @keyup.enter="buscarDados"
           >
-            <template #before>
-              <q-btn
-                icon="add_box"
-                label="CRIAR VEÍCULO"
-                color="primary"
-                @click="dialog.criar = true"
-              />
-            </template>
-
             <template v-if="search" #append>
               <q-icon name="close" class="cursor-pointer" @click="clearSearch" />
             </template>
@@ -72,7 +62,7 @@
 
             <q-td key="status">
               <q-badge :color="badgeColor(props.row.status)">
-                {{ props.row.status }}
+                {{ formatarStatus(props.row.status) }}
               </q-badge>
             </q-td>
 
@@ -87,7 +77,7 @@
               </q-btn>
 
               <q-btn
-                @click=";(dialog.documentos = true), (veiculoId = props.row.id)"
+                @click=";((dialog.documentos = true), (veiculoId = props.row.id))"
                 flat
                 dense
                 icon="groups_2"
@@ -113,7 +103,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { api } from 'boot/axios'
-import CriarVeiculo from 'src/components/veiculos/CriarVeiculo.vue'
+import { formatarStatus } from 'src/utils/status'
 import MostrarVeiculo from 'src/components/veiculos/MostrarVeiculo.vue'
 import EditarVeiculo from 'src/components/veiculos/EditarVeiculo.vue'
 import ExcluirVeiculo from 'src/components/veiculos/ExcluirVeiculo.vue'
@@ -130,7 +120,6 @@ const grid = ref(false)
 
 const dialog = reactive({
   editar: false,
-  criar: false,
   mostrar: false,
   excluir: false,
 })
@@ -140,6 +129,7 @@ const veiculoId = ref(null)
 const pagination = ref({
   page: 1,
   rowsPerPage: 5,
+  rowsNumber: 0,
 })
 
 const columns = [
@@ -157,6 +147,9 @@ const columns = [
 ]
 
 const badgeColor = (status) => {
+  if (status === 'em_analise') return 'orange'
+  if (status === 'aprovado') return 'green'
+  if (status === 'reprovado') return 'red'
   if (status === 'ativo') return 'green'
   if (status === 'inativo') return 'orange'
   if (status === 'pendente') return 'warning'
@@ -186,7 +179,7 @@ const openExcluir = (usuario) => {
 
 const buscarDados = async (props) => {
   loading.value = true
-  const { page, rowsPerPage } = props ? props.pagination : pagination
+  const { page, rowsPerPage } = props?.pagination || pagination.value
   try {
     const response = await api.get('/veiculos', {
       params: {
@@ -209,7 +202,6 @@ const buscarDados = async (props) => {
   }
 }
 const onRequest = async (props) => {
-  console.log(props, 'props')
   await buscarDados(props)
 }
 

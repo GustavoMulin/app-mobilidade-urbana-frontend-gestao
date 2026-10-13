@@ -121,7 +121,7 @@
                 <q-item-section>
                   <q-item-label>{{ props.row.name }}</q-item-label>
                   <q-item-label caption>
-                    {{ props.row.email }}
+                    CPF: {{ props.row.cpf }}
                   </q-item-label>
                 </q-item-section>
               </q-item>

@@ -192,8 +192,8 @@
                       :unmasked-value="!!campo.mask"
                       :rules="campo.name === 'cpf' ? cpfRules : undefined"
                       :disable="camposBloqueados"
-                      :error="!!errors[`cnh.${campo.name}`]"
-                      :error-message="errors[`cnh.${campo.name}`]?.[0]"
+                      :error="!!errors[`informacoes_complementares.${campo.name}`]"
+                      :error-message="errors[`informacoes_complementares.${campo.name}`]?.[0]"
                       hide-bottom-space
                     />
                   </div>
@@ -207,8 +207,8 @@
                       emit-value
                       map-options
                       :disable="camposBloqueados"
-                      :error="!!errors['cnh.ear']"
-                      :error-message="errors['cnh.ear']?.[0]"
+                      :error="!!errors['informacoes_complementares.ear']"
+                      :error-message="errors['informacoes_complementares.ear']?.[0]"
                     />
                   </div>
                   <div v-if="isReenvio" class="col-12">
@@ -601,11 +601,15 @@ async function loadMotorista() {
   try {
     const { data } = await api.get(`/motoristas/${props.motoristaId}`)
     if (version !== loadVersion) return
+    const informacoes = props.documento?.informacoes_complementares || {}
     for (const campo of camposCnh) {
-      cnh.value[campo.name] =
-        campo.type === 'date' ? (data[campo.name] || '').slice(0, 10) : data[campo.name] || ''
+      const valor = Object.hasOwn(informacoes, campo.name)
+        ? informacoes[campo.name]
+        : data[campo.name]
+      cnh.value[campo.name] = campo.type === 'date' ? (valor || '').slice(0, 10) : valor || ''
     }
-    cnh.value.ear = data.ear == null ? null : !!Number(data.ear)
+    const ear = Object.hasOwn(informacoes, 'ear') ? informacoes.ear : data.ear
+    cnh.value.ear = ear == null ? null : !!Number(ear)
   } catch {
     if (version === loadVersion) erroCarregamento.value = true
   } finally {
@@ -644,7 +648,10 @@ async function request() {
   data.append('tipo_documento', props.documento.tipo_documento)
   if (isCnh.value) {
     for (const [name, value] of Object.entries(cnh.value)) {
-      data.append(`cnh[${name}]`, typeof value === 'boolean' ? (value ? '1' : '0') : (value ?? ''))
+      data.append(
+        `informacoes_complementares[${name}]`,
+        typeof value === 'boolean' ? (value ? '1' : '0') : (value ?? ''),
+      )
     }
   }
   try {

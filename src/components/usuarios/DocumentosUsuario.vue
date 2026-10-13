@@ -1,10 +1,26 @@
 <template>
   <section>
-    <SubirArquivo
+    <SubirNadaConsta
+      v-if="documentoSelecionado.tipo_documento === 'nada_consta'"
       @updated="onDocumentoUpdated"
       v-model="dialog.envairArquivo"
       :motorista-id="motoristaId"
       :documento="documentoSelecionado"
+    />
+    <SubirArquivo
+      v-else-if="!documentoSelecionado.possui_dados_crlv"
+      @updated="onDocumentoUpdated"
+      v-model="dialog.envairArquivo"
+      :motorista-id="motoristaId"
+      :documento="documentoSelecionado"
+    />
+    <SubirCrlv
+      v-else
+      @updated="onDocumentoUpdated"
+      v-model="dialog.envairArquivo"
+      :motorista-id="motoristaId"
+      :documento="documentoSelecionado"
+      :veiculos="veiculos"
     />
     <q-dialog v-model="model" @before-show="beforeShow" @before-hide="onBeforeHide">
       <q-card class="documentos-usuario-dialog" style="width: 600px; max-width: 50vw">
@@ -30,7 +46,9 @@
           :columns="columns"
           :loading="carregandoDocumentos"
           no-data-label="Nenhum documento disponível."
-          row-key="tipo_documento"
+          :row-key="(row) => row.chave || row.tipo_documento"
+          :pagination="{ rowsPerPage: 0 }"
+          :rows-per-page-options="[0]"
           hide-bottom
           hide-header
         >
@@ -57,10 +75,20 @@
                     <q-item-label class="estilo-coluna" caption>
                       {{ props.row.descricao }}
                     </q-item-label>
+                    <q-item-label v-if="props.row.veiculo" class="text-weight-medium">
+                      {{ props.row.veiculo.placa }} — {{ props.row.veiculo.marca }}
+                      {{ props.row.veiculo.modelo }}
+                    </q-item-label>
+                    <q-item-label v-if="props.row.legado" caption
+                      >Documento anterior sem veículo identificado</q-item-label
+                    >
+                    <q-item-label v-if="props.row.sem_veiculo" caption
+                      >Envie o CRLV para cadastrar o veículo.</q-item-label
+                    >
                     <q-item-label caption>
                       <q-badge
                         :color="badgeColor(props.row.status)"
-                        :label="props.row.status ? props.row.status : 'Não enviado'"
+                        :label="props.row.status ? formatarStatus(props.row.status) : 'Não enviado'"
                       />
                     </q-item-label>
                   </q-item-section>
@@ -139,7 +167,7 @@
                     v-if="
                       !carregandoDocumentos &&
                       !erroCarregamento &&
-                      visibilidadeBotoes(props.row.status, 'upload')
+                      visibilidadeBotoes(props.row.status, 'upload', props.row)
                     "
                     @click="abrirEnvio(props.row)"
                     :color="props.row.id ? 'black' : 'grey'"
@@ -147,10 +175,10 @@
                     round
                     dense
                     :aria-label="
-                      props.row.status === 'em_analise'
-                        ? 'Expandir documento'
-                        : props.row.status === 'reprovado'
-                          ? 'Reenviar documento'
+                      props.row.status === 'reprovado'
+                        ? 'Reenviar documento'
+                        : props.row.id
+                          ? 'Expandir documento'
                           : 'Enviar documento'
                     "
                   >
@@ -160,10 +188,10 @@
                     />
                     <q-tooltip transition-show="flip-right" transition-hide="flip-left">
                       {{
-                        props.row.status === 'em_analise'
-                          ? 'Expandir documento'
-                          : props.row.status === 'reprovado'
-                            ? 'Reenviar documento'
+                        props.row.status === 'reprovado'
+                          ? 'Reenviar documento'
+                          : props.row.id
+                            ? 'Expandir documento'
                             : 'Enviar arquivo'
                       }}
                     </q-tooltip>
@@ -190,9 +218,12 @@
 import { computed, ref } from 'vue'
 import { exportFile, useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+import { formatarStatus } from 'src/utils/status'
 import CardPerfilUsuario from 'src/components/usuarios/CardPerfilUsuario.vue'
 import JanelaConfirmacao from 'src/components/JanelaConfirmacao.vue'
 import SubirArquivo from 'src/components/motorista/SubirArquivo.vue'
+import SubirCrlv from 'src/components/motorista/SubirCrlv.vue'
+import SubirNadaConsta from 'src/components/motorista/SubirNadaConsta.vue'
 import ReprovarDocumento from 'src/components/motorista/ReprovarDocumento.vue'
 
 const iconeExpandir = 'M14 4h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6z'
@@ -226,6 +257,7 @@ const dialog = ref({
 })
 
 const data = ref([])
+const veiculos = ref([])
 const carregandoDocumentos = ref(false)
 const erroCarregamento = ref(false)
 const baixandoDocumento = ref(null)
@@ -259,7 +291,7 @@ function onBeforeHide() {
   erroCarregamento.value = false
 }
 
-function visibilidadeBotoes(status, tipo) {
+function visibilidadeBotoes(status, tipo, documento) {
   switch (tipo) {
     case 'reprovar':
       return status === 'em_analise' || status === 'aprovado'
@@ -267,6 +299,7 @@ function visibilidadeBotoes(status, tipo) {
       return status === 'em_analise' || status === 'reprovado'
 
     case 'upload':
+      if (documento?.possui_dados_crlv && documento.id) return true
       return !status || status === 'reprovado' || status === 'em_analise'
 
     default:
@@ -346,6 +379,7 @@ const getMotoristaDocumentos = async () => {
     })
     if (version !== documentosVersion) return
     data.value = response.data.data
+    veiculos.value = response.data.veiculos || []
   } catch (error) {
     if (version === documentosVersion) {
       erroCarregamento.value = true

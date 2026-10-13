@@ -10,8 +10,6 @@
     "lint": "eslint -c ./eslint.config.js \"./src*/**/*.{js,cjs,mjs,vue}\"",
     "format": "prettier --write \"**/*.{js,vue,css,scss,html,md,json}\" --ignore-path .gitignore",
     "test": "echo \"No test specified\" && exit 0",
-    "test:cnh": "node --test tests/cnh.test.mjs",
-    "test:e2e": "npm run build && playwright test",
     "prepare:ocr": "node scripts/prepare-ocr.mjs",
     "dev": "npm run prepare:ocr && quasar dev",
     "build": "npm run prepare:ocr && quasar build",
