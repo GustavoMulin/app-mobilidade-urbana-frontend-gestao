@@ -53,10 +53,26 @@
           />
         </div>
         <div class="col-md-6 col-12 q-px-md q-py-sm">
-          <q-input dense outlined v-model="veiculo.uf" label="UF *" />
+          <q-select
+              dense
+              outlined
+              v-model="veiculo.uf"
+              :options="OPCOES_UF"
+              emit-value
+              map-options
+              label="UF *"
+            />
         </div>
         <div class="col-md-6 col-12 q-px-md q-py-sm">
-          <q-input dense outlined v-model="veiculo.status" label="Status *" />
+          <q-select
+              dense
+              outlined
+              v-model="veiculo.status"
+              :options="OPCOES_STATUS"
+              emit-value
+              map-options
+              label="Status *"
+            />
         </div>
 
         <div class="col-12 q-px-md q-py-sm">
@@ -136,6 +152,17 @@ const model = computed({
   get: () => props.modelValue,
   set: (val) => emit('update:modelValue', val),
 })
+
+const OPCOES_UF = [
+  'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA',
+  'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO',
+]
+
+const OPCOES_STATUS = [
+  { label: 'Aprovado', value: 'aprovado' },
+  { label: 'Em análise', value: 'em_analise' },
+  { label: 'Reprovado', value: 'reprovado' },
+]
 
 const OPCOES_CATEGORIA = [
   { label: 'Carro', value: 'carro' },
