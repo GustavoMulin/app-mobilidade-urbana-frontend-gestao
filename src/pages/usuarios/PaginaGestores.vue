@@ -1,5 +1,6 @@
 <template>
   <q-page class="q-pa-md">
+    <CriarUsuario v-model="dialogCadastrar" tipoUsuario="gestor" @created="gestorSalvo" />
     <FormularioGestor
       v-model="dialogFormulario"
       :gestor-id="gestorId"
@@ -151,6 +152,7 @@ import { api } from 'boot/axios'
 import { useAuthStore } from 'src/stores/auth'
 import CardPerfilGestor from 'src/components/gestores/CardPerfilGestor.vue'
 import FormularioGestor from 'src/components/gestores/FormularioGestor.vue'
+import CriarUsuario from 'src/components/usuarios/CriarUsuario.vue'
 
 const $q = useQuasar()
 const authStore = useAuthStore()
@@ -160,6 +162,7 @@ const search = ref('')
 const carregando = ref(false)
 const erroLista = ref('')
 const dialogFormulario = ref(false)
+const dialogCadastrar = ref(false)
 const gestorId = ref(null)
 const visualizar = ref(false)
 const dialogConfirmacao = ref(false)
@@ -174,6 +177,10 @@ const columns = [
 let ultimaConsulta = 0
 
 function abrirFormulario(gestor = null, leitura = false) {
+  if (!gestor) {
+    dialogCadastrar.value = true
+    return
+  }
   gestorId.value = gestor?.id || null
   visualizar.value = leitura
   dialogFormulario.value = true
