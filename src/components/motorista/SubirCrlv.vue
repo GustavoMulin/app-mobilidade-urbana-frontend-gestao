@@ -85,6 +85,7 @@
                   dense
                   icon="add_box"
                   label="Novo veículo"
+                  v-if="pode('veiculos.gerenciar')"
                   class="crlv-navegacao-botao crlv-novo-veiculo q-ml-auto"
                   :disable="ocupado || lendo || novoVeiculo"
                   @click="iniciarNovoVeiculo"
@@ -118,7 +119,7 @@
               :display-value="anexoSalvoAtivo ? nomeSalvo : undefined"
               accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
               :max-file-size="2097152"
-              :disable="lendo || ocupado || !substituicaoPermitida"
+              :disable="lendo || ocupado || !substituicaoPermitida || !pode('documentos.analisar')"
               :rules="anexoSalvoAtivo ? undefined : [(v) => !!v || 'Selecione um arquivo']"
               :error="!!errors.arquivo"
               :error-message="errors.arquivo?.[0]"
@@ -138,7 +139,9 @@
                   color="grey-6"
                   icon="cancel"
                   aria-label="Remover documento atual"
-                  :disable="lendo || ocupado || !substituicaoPermitida"
+                  :disable="
+                    lendo || ocupado || !substituicaoPermitida || !pode('documentos.analisar')
+                  "
                   @click.stop.prevent="removerAnexo"
                   ><q-tooltip>Remover documento atual</q-tooltip></q-btn
                 ></template
@@ -178,7 +181,7 @@
                     :autogrow="campo.type === 'textarea'"
                     :maxlength="campo.maxlength"
                     :disable="lendo || ocupado"
-                    :readonly="!substituicaoPermitida"
+                    :readonly="!substituicaoPermitida || !pode('documentos.analisar')"
                     :rules="campo.rules"
                     :hint="campo.hint"
                     :error="!!errors[`informacoes_complementares.${campo.name}`]"
@@ -298,6 +301,7 @@
             color="primary"
             type="submit"
             label="Enviar"
+            v-if="pode('documentos.analisar')"
             :loading="enviando"
             :disable="
               ocupado ||
@@ -315,6 +319,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from 'src/stores/auth'
+const { pode } = useAuthStore()
 import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'

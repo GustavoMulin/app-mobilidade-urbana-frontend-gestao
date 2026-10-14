@@ -78,6 +78,7 @@
                     <q-btn
                       icon="add_box"
                       label="ADICIONAR VEÍCULO"
+                      v-if="pode('veiculos.gerenciar')"
                       color="primary"
                       :disable="
                         !motoristaId ||
@@ -140,6 +141,7 @@
                   <q-td key="acoes" align="center">
                     <q-btn
                       v-if="
+                        pode('documentos.analisar') &&
                         props.row.veiculo.ultimo_crlv &&
                         ['em_analise', 'aprovado'].includes(props.row.veiculo.status)
                       "
@@ -154,6 +156,7 @@
                     >
                     <q-btn
                       v-if="
+                        pode('documentos.analisar') &&
                         props.row.veiculo.ultimo_crlv &&
                         ['em_analise', 'reprovado'].includes(props.row.veiculo.status)
                       "
@@ -186,12 +189,13 @@
                       flat
                       icon="groups_2"
                       aria-label="Compartilhar veículo"
+                      v-if="pode('veiculos.gerenciar')"
                       :disable="loading || alterandoStatus"
                       @click="abrirCompartilhamento(props.row.veiculo)"
                     >
                       <q-tooltip>Compartilhar veículo</q-tooltip>
                     </q-btn>
-                    <q-btn dense flat icon="delete">
+                    <q-btn v-if="pode('veiculos.gerenciar')" dense flat icon="delete">
                       <template v-slot:loading>
                         <q-spinner-hourglass />
                       </template>
@@ -208,6 +212,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from 'src/stores/auth'
+const { pode } = useAuthStore()
 import { computed, ref } from 'vue'
 import SubirCrlv from 'src/components/motorista/SubirCrlv.vue'
 import CompartilharVeiculo from 'src/components/motorista/CompartilharVeiculo.vue'

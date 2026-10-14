@@ -26,7 +26,7 @@
               :display-value="anexoSalvoAtivo ? nomeSalvo : undefined"
               accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
               :max-file-size="2097152"
-              :disable="lendo || ocupado"
+              :disable="lendo || ocupado || !pode('documentos.analisar')"
               :rules="anexoSalvoAtivo ? undefined : [(v) => !!v || 'Selecione um arquivo']"
               :error="!!errors.arquivo"
               :error-message="errors.arquivo?.[0]"
@@ -46,7 +46,7 @@
                   color="grey-6"
                   icon="cancel"
                   aria-label="Remover documento atual"
-                  :disable="lendo || ocupado"
+                  :disable="lendo || ocupado || !pode('documentos.analisar')"
                   @click.stop.prevent="removerAnexo"
                 >
                   <q-tooltip>Remover documento atual</q-tooltip>
@@ -82,7 +82,7 @@
                     :stack-label="['date', 'time'].includes(campo.type)"
                     :autogrow="campo.type === 'textarea'"
                     :maxlength="campo.maxlength"
-                    :disable="lendo || ocupado"
+                    :disable="lendo || ocupado || !pode('documentos.analisar')"
                     :rules="campo.rules"
                     :hint="campo.hint"
                     :mask="campo.mask"
@@ -190,6 +190,7 @@
             color="primary"
             type="submit"
             label="Enviar"
+            v-if="pode('documentos.analisar')"
             :loading="enviando"
             :disable="ocupado || !podeEnviar"
           />
@@ -200,6 +201,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from 'src/stores/auth'
+const { pode } = useAuthStore()
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { copyToClipboard, useQuasar } from 'quasar'
 import { api } from 'boot/axios'

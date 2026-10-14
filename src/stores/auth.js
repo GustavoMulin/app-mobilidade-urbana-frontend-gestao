@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from 'boot/axios'
+import { disconnectEcho } from 'src/services/echo'
 
 export const useAuthStore = defineStore('auth', () => {
   // --- STATE ---
@@ -11,6 +12,10 @@ export const useAuthStore = defineStore('auth', () => {
   // --- GETTERS ---
   const isAuthenticated = computed(() => !!token.value)
   const getUser = computed(() => user.value)
+  const permissoes = computed(() => user.value?.permissoes || [])
+  function pode(permissao) {
+    return permissoes.value.includes(permissao)
+  }
 
   // --- ACTIONS ---
 
@@ -21,13 +26,14 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = response.data
       return response
     } catch (error) {
-      clearSession()
+      if (error.response?.status === 401) clearSession()
       throw error
     }
   }
 
   // Função de login
   async function login(credentials) {
+    disconnectEcho()
     const response = await api.post('auth/login', credentials)
     const newToken = response.data.token
 
@@ -42,6 +48,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Logout
   function clearSession() {
+    disconnectEcho()
     user.value = null
     setToken(null)
   }
@@ -87,6 +94,8 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     isAuthenticated,
     getUser,
+    permissoes,
+    pode,
     login,
     logout,
     clearSession,

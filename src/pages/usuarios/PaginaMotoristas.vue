@@ -60,6 +60,7 @@
                 class="q-mr-sm"
                 icon="person_add_alt"
                 label="CRIAR MOTORISTA"
+                v-if="pode('usuarios.gerenciar')"
                 color="primary"
                 @click="dialog.cadastrar = true"
               />
@@ -162,7 +163,13 @@
                 </q-tooltip>
               </q-btn>
 
-              <q-btn @click="openExcluir(props.row)" dense flat icon="delete">
+              <q-btn
+                v-if="pode('usuarios.gerenciar')"
+                @click="openExcluir(props.row)"
+                dense
+                flat
+                icon="delete"
+              >
                 <q-tooltip transition-show="flip-right" transition-hide="flip-left">
                   arquivar
                 </q-tooltip>
@@ -176,6 +183,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from 'src/stores/auth'
+const { pode } = useAuthStore()
 import { ref, reactive, onMounted } from 'vue'
 import { api } from 'boot/axios'
 import CriarUsuario from 'src/components/usuarios/CriarUsuario.vue'
