@@ -1,8 +1,7 @@
 <template>
   <q-page class="q-pa-md">
-    <CriarVeiculo @onRequest="onRequest" v-model="dialog.criar" />
     <VisualizarRegistro v-model="dialog.mostrar" tipo="corrida" :registro="registroVisualizado" />
-    <ExcluirVeiculo
+    <ExcluirRegistro
       :acao="openPress"
       :data="usuarioSelecionado"
       @deleted="onRequest"
@@ -113,9 +112,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { api } from 'boot/axios'
-import CriarVeiculo from 'src/components/veiculos/CriarVeiculo.vue'
 import VisualizarRegistro from 'src/components/VisualizarRegistro.vue'
-import ExcluirVeiculo from 'src/components/veiculos/ExcluirVeiculo.vue'
+import ExcluirRegistro from 'src/components/ExcluirRegistro.vue'
 import { camposDetalhes } from 'src/utils/detalhesRegistro'
 import { formatarStatus } from 'src/utils/status'
 
