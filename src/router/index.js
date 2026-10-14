@@ -25,11 +25,11 @@ export default route(function () {
     const authStore = useAuthStore()
 
     const token = localStorage.getItem('token')
-    if (token && !authStore.user) {
+    if (token && (!authStore.user || to.meta.requiresAuth)) {
       try {
         await authStore.fetchUser()
       } catch {
-        authStore.clearSession()
+        if (!authStore.user) authStore.clearSession()
       }
     }
 
@@ -38,6 +38,9 @@ export default route(function () {
     // REGRA 1: Se NÃO está autenticado e tenta acessar rota protegida
     if (to.meta.requiresAuth && !isAuthenticated) {
       return '/login'
+    }
+    if (to.meta.permissao && !authStore.pode(to.meta.permissao)) {
+      return '/sem-acesso'
     }
 
     // REGRA 2: Se ESTÁ autenticado e tenta acessar /login

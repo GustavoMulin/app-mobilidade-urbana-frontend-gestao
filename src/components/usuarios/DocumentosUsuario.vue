@@ -227,6 +227,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from 'src/stores/auth'
+const { pode } = useAuthStore()
 import { computed, ref } from 'vue'
 import { exportFile, useQuasar } from 'quasar'
 import { api } from 'boot/axios'
@@ -328,13 +330,16 @@ function onBeforeHide() {
 function visibilidadeBotoes(status, tipo, documento) {
   switch (tipo) {
     case 'reprovar':
-      return status === 'em_analise' || status === 'aprovado'
+      return pode('documentos.analisar') && (status === 'em_analise' || status === 'aprovado')
     case 'aprovar':
-      return status === 'em_analise' || status === 'reprovado'
+      return pode('documentos.analisar') && (status === 'em_analise' || status === 'reprovado')
 
     case 'upload':
       if (documento?.id) return true
-      return !status || status === 'reprovado' || status === 'em_analise'
+      return (
+        pode('documentos.analisar') &&
+        (!status || status === 'reprovado' || status === 'em_analise')
+      )
 
     default:
       return false

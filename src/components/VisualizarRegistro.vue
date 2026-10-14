@@ -29,7 +29,10 @@
           v-if="possuiFotoPerfil"
           :src="imagem || ''"
           :loading="salvandoFoto"
-          :disable="!!dados?.deleted_at"
+          :disable="
+            !!dados?.deleted_at ||
+            !pode(tipo === 'gestor' ? 'gestores.gerenciar' : 'usuarios.gerenciar')
+          "
           @selected="salvarFoto"
           @remove="salvarFoto(null)"
         />
@@ -68,6 +71,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from 'src/stores/auth'
+const { pode } = useAuthStore()
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'

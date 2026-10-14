@@ -47,7 +47,13 @@ export default defineConfig((/* ctx */) => {
 
       // publicPath: '/',
       // analyze: true,
-      // env: {},
+      envFilter: (env = {}) => ({
+        ...env,
+        REVERB_APP_KEY: env.REVERB_APP_KEY || process.env.REVERB_APP_KEY || '',
+        REVERB_HOST: env.REVERB_HOST || process.env.REVERB_HOST || '',
+        REVERB_PORT: env.REVERB_PORT || process.env.REVERB_PORT || '8080',
+        REVERB_SCHEME: env.REVERB_SCHEME || process.env.REVERB_SCHEME || 'http',
+      }),
       // rawDefine: {}
       // ignorePublicFolder: true,
       // minify: false,

@@ -1,5 +1,5 @@
 <template>
-  <div v-if="documento?.id" class="row q-gutter-sm">
+  <div v-if="documento?.id && pode('documentos.analisar')" class="row q-gutter-sm">
     <q-btn
       v-if="['em_analise', 'aprovado'].includes(documento.status)"
       flat
@@ -27,6 +27,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from 'src/stores/auth'
+const { pode } = useAuthStore()
 import { ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'

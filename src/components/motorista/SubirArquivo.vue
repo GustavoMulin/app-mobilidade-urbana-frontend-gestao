@@ -48,7 +48,7 @@
               ]"
               toggle-color="primary"
               no-caps
-              :disable="ocupado || carregandoCampos"
+              :disable="ocupado || carregandoCampos || !pode('documentos.analisar')"
               aria-label="Formato de envio da CNH"
             />
             <q-file
@@ -69,7 +69,7 @@
                 isCnh ? (fotosCnh ? formatosImagem : '.pdf,application/pdf') : formatosArquivo
               "
               :max-file-size="2097152"
-              :disable="ocupado || carregandoCampos"
+              :disable="ocupado || carregandoCampos || !pode('documentos.analisar')"
               :rules="anexoSalvoAtivo ? undefined : [(val) => !!val || 'Selecione um arquivo']"
               :error="!!errors.arquivo"
               :error-message="errors.arquivo?.[0]"
@@ -93,7 +93,7 @@
                   icon="cancel"
                   color="grey-6"
                   aria-label="Remover documento atual"
-                  :disable="ocupado || carregandoCampos"
+                  :disable="ocupado || carregandoCampos || !pode('documentos.analisar')"
                   @click.stop.prevent="removerAnexoSalvo"
                 >
                   <q-tooltip>{{
@@ -114,7 +114,7 @@
               :display-value="anexoSalvoAtivo ? nomeAnexoSalvo(documento?.verso) : undefined"
               :accept="formatosImagem"
               :max-file-size="2097152"
-              :disable="ocupado || carregandoCampos"
+              :disable="ocupado || carregandoCampos || !pode('documentos.analisar')"
               :rules="
                 anexoSalvoAtivo ? undefined : [(val) => !!val || 'Selecione a foto do verso da CNH']
               "
@@ -167,6 +167,7 @@
                   >
                     <q-input
                       v-model="cnh[campo.name]"
+                      :readonly="!pode('documentos.analisar')"
                       @update:model-value="marcarCampoEditado(campo.name)"
                       outlined
                       :label="campo.label"
@@ -193,7 +194,7 @@
                       :options="earOptions"
                       emit-value
                       map-options
-                      :disable="camposBloqueados"
+                      :disable="camposBloqueados || !pode('documentos.analisar')"
                       :error="!!errors['informacoes_complementares.ear']"
                       :error-message="errors['informacoes_complementares.ear']?.[0]"
                     />
@@ -306,6 +307,7 @@
           <q-btn
             type="submit"
             label="Enviar"
+            v-if="pode('documentos.analisar')"
             color="primary"
             :loading="enviando"
             :disable="
@@ -324,6 +326,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from 'src/stores/auth'
+const { pode } = useAuthStore()
 import { computed, onUnmounted, reactive, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'

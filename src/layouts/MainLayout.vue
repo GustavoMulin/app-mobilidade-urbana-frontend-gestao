@@ -37,6 +37,7 @@
                   <q-item-section>
                     <q-item-label class="text-weight-bold">{{ user?.name }}</q-item-label>
                     <q-item-label caption>{{ user?.email }}</q-item-label>
+                    <q-item-label caption>{{ user?.perfil_acesso_nome }}</q-item-label>
                   </q-item-section>
                 </q-item>
                 <q-separator />
@@ -63,89 +64,34 @@
             </q-item-section>
           </q-item>
 
-          <q-expansion-item label="Menu Levels">
-            <template #header>
-              <q-item-section class="q-pl-md" thumbnail>
-                <q-icon name="settings" :color="$q.dark.isActive ? 'white' : 'grey'" />
-              </q-item-section>
-              <q-item-section>
-                <q-item-label class="q-pl-md">Gestão</q-item-label>
-              </q-item-section>
-            </template>
-
-            <q-item
-              clickable
-              @click="$router.push('/produtos-corridas')"
-              class="q-ml-xl"
-              active-class="q-item-no-link-highlighting"
+          <q-expansion-item
+            v-if="pode('configuracoes.gerenciar')"
+            icon="settings"
+            label="Configurações"
+          >
+            <q-item clickable to="/produtos-corridas" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="apps" /></q-item-section
+              ><q-item-section>Produtos</q-item-section></q-item
             >
-              <q-item-section class="q-pl-md" thumbnail>
-                <q-icon name="apps" :color="$q.dark.isActive ? 'white' : 'grey'" />
-              </q-item-section>
-              <q-item-section>
-                <q-item-label>Produtos</q-item-label>
-              </q-item-section>
-            </q-item>
-
-            <q-item
-              clickable
-              @click="$router.push('/produto-categorias')"
-              class="q-ml-xl"
-              active-class="q-item-no-link-highlighting"
+            <q-item clickable to="/produto-categorias" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="category" /></q-item-section
+              ><q-item-section>Categorias</q-item-section></q-item
             >
-              <q-item-section class="q-pl-md" thumbnail>
-                <q-icon name="category" :color="$q.dark.isActive ? 'white' : 'grey'" />
-              </q-item-section>
-              <q-item-section>
-                <q-item-label>Produto categorias</q-item-label>
-              </q-item-section>
-            </q-item>
-
-            <q-item
-              clickable
-              @click="$router.push('/tarifas')"
-              class="q-ml-xl"
-              active-class="q-item-no-link-highlighting"
+            <q-item clickable to="/tarifas" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="attach_money" /></q-item-section
+              ><q-item-section>Tarifas</q-item-section></q-item
             >
-              <q-item-section class="q-pl-md" thumbnail>
-                <q-icon name="attach_money" :color="$q.dark.isActive ? 'white' : 'grey'" />
-              </q-item-section>
-              <q-item-section>
-                <q-item-label>Tarifas</q-item-label>
-              </q-item-section>
-            </q-item>
-
-            <!-- <q-expansion-item :header-inset-level="0.85" label="Level 2">
-              <q-item
-                class="q-ml-xl"
-                style="margin-left: 55px !important"
-                active-class="q-item-no-link-highlighting"
-              >
-                <q-item-section>
-                  <q-item-label>Level 2.1</q-item-label>
-                </q-item-section>
-              </q-item>
-              <q-expansion-item :header-inset-level="1" label="Level 2.2">
-                <q-item
-                  style="margin-left: 65px !important"
-                  active-class="q-item-no-link-highlighting"
-                >
-                  <q-item-section>
-                    <q-item-label>Level 2.2.1</q-item-label>
-                  </q-item-section>
-                </q-item>
-                <q-item
-                  style="margin-left: 65px !important"
-                  active-class="q-item-no-link-highlighting"
-                >
-                  <q-item-section>
-                    <q-item-label>Level 2.2.2</q-item-label>
-                  </q-item-section>
-                </q-item>
-              </q-expansion-item>
-            </q-expansion-item> -->
           </q-expansion-item>
-
+          <q-expansion-item
+            v-if="pode('regras.gerenciar')"
+            icon="admin_panel_settings"
+            label="Administração"
+          >
+            <q-item clickable to="/administracao/regras" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="rule" /></q-item-section
+              ><q-item-section>Regras</q-item-section></q-item
+            >
+          </q-expansion-item>
           <q-separator class="q-my-md" />
 
           <q-item v-ripple clickable :disable="saindo" @click="logout">
@@ -202,6 +148,7 @@ export default {
 
     return {
       user,
+      pode: authStore.pode,
       saindo,
       logout,
       fabYoutube,
@@ -209,16 +156,43 @@ export default {
       search,
       toggleLeftDrawer,
 
-      links1: [
-        { icon: 'groups_2', text: 'Usuarios', to: '/usuarios' },
-        { icon: 'manage_accounts', text: 'Gestores', to: '/gestores' },
-        { icon: 'directions_car', text: 'Veículos', to: '/veiculos' },
-        { icon: 'group', text: 'Motoristas', to: '/motoristas' },
-        { icon: 'groups_2', text: 'Passageiros', to: '/passageiros' },
-        { icon: 'no_crash', text: 'Corridas', to: '/corridas' },
-        { icon: 'help_center', text: 'Central de ajuda', to: '/usuarios1' },
-        { icon: 'photo', text: 'Central de publicidade', to: '/publicidades' },
-      ],
+      links1: computed(() =>
+        [
+          { icon: 'groups_2', text: 'Usuários', to: '/usuarios', permissao: 'usuarios.consultar' },
+          {
+            icon: 'manage_accounts',
+            text: 'Gestores',
+            to: '/gestores',
+            permissao: 'gestores.gerenciar',
+          },
+          {
+            icon: 'directions_car',
+            text: 'Veículos',
+            to: '/veiculos',
+            permissao: 'veiculos.consultar',
+          },
+          { icon: 'group', text: 'Motoristas', to: '/motoristas', permissao: 'usuarios.consultar' },
+          {
+            icon: 'groups_2',
+            text: 'Passageiros',
+            to: '/passageiros',
+            permissao: 'usuarios.consultar',
+          },
+          { icon: 'no_crash', text: 'Corridas', to: '/corridas', permissao: 'corridas.consultar' },
+          {
+            icon: 'help_center',
+            text: 'Central de ajuda',
+            to: '/central-ajuda',
+            permissao: 'ajuda.gerenciar',
+          },
+          {
+            icon: 'photo',
+            text: 'Central de publicidade',
+            to: '/publicidades',
+            permissao: 'configuracoes.gerenciar',
+          },
+        ].filter((link) => authStore.pode(link.permissao)),
+      ),
       links2: [
         { icon: 'folder', text: 'Library' },
         { icon: 'restore', text: 'History' },
