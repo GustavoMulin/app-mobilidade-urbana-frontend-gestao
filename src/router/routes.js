@@ -21,8 +21,7 @@ const routes = [
 
       {
         path: 'usuarios',
-        component: () =>
-          import('src/pages/usuarios/PaginaUsuarios.vue'),
+        component: () => import('src/pages/usuarios/PaginaUsuarios.vue'),
       },
 
       {
@@ -32,49 +31,41 @@ const routes = [
 
       {
         path: 'motoristas',
-        component: () =>
-          import('src/pages/usuarios/PaginaMotoristas.vue'),
+        component: () => import('src/pages/usuarios/PaginaMotoristas.vue'),
       },
 
       {
         path: 'passageiros',
-        component: () =>
-          import('src/pages/usuarios/PaginaPassageiros.vue'),
-      },
-
-      {
-        path: 'veiculos',
-        component: () =>
-          import('src/pages/PaginaVeiculos.vue'),
+        component: () => import('src/pages/usuarios/PaginaPassageiros.vue'),
       },
 
       {
         path: 'corridas',
-        component: () =>
-          import('src/pages/PaginaCorridas.vue'),
+        component: () => import('src/pages/PaginaCorridas.vue'),
+      },
+
+      {
+        path: 'veiculos',
+        component: () => import('src/pages/PaginaVeiculos.vue'),
       },
 
       {
         path: 'tarifas',
-        component: () =>
-          import('src/pages/PaginaTarifas.vue'),
+        component: () => import('src/pages/PaginaTarifas.vue'),
       },
 
       {
         path: 'produtos-corridas',
-        component: () =>
-          import('src/pages/PaginaProdutosCorridas.vue'),
+        component: () => import('src/pages/PaginaProdutosCorridas.vue'),
       },
 
       {
         path: 'produto-categorias',
-        component: () =>
-          import('src/pages/PaginaProdutoCategorias.vue'),
+        component: () => import('src/pages/PaginaProdutoCategorias.vue'),
       },
       {
         path: 'publicidades',
-        component: () =>
-          import('src/pages/midias/PaginaMidias.vue'),
+        component: () => import('src/pages/midias/PaginaMidias.vue'),
       },
     ],
   },

@@ -5,31 +5,6 @@ const pessoais = (prefixo = '') => [
   campo(`${prefixo}data_nascimento`, 'Data de nascimento', 'data'),
 ]
 const contatos = [campo('email', 'E-mail'), campo('telefone', 'Telefone', 'telefone')]
-const veiculo = [
-  campo('marca', 'Marca'),
-  campo('modelo', 'Modelo'),
-  campo('placa', 'Placa'),
-  campo('renavam', 'RENAVAM'),
-  campo('chassi', 'Chassi'),
-  campo('ano_fabricacao', 'Ano de fabricação'),
-  campo('ano_modelo', 'Ano do modelo'),
-  campo('cor', 'Cor'),
-  campo('categoria', 'Tipo do veículo'),
-  campo('uf', 'UF'),
-  campo('status', 'Status', 'status'),
-  campo('numero_crv', 'Número do CRV'),
-  campo('codigo_seguranca', 'Código de segurança do CLA'),
-  campo('exercicio', 'Exercício do licenciamento'),
-  campo('data_emissao', 'Data de emissão', 'data'),
-  campo('nome_proprietario', 'Nome do proprietário'),
-  campo('cpf_cnpj_proprietario', 'CPF/CNPJ do proprietário'),
-  campo('marca_modelo', 'Marca/modelo/versão no CRLV'),
-  campo('categoria_crlv', 'Categoria no CRLV'),
-  campo('observacao', 'Observações'),
-  campo('eletrico', 'Elétrico', 'booleano'),
-  campo('taxi', 'Táxi', 'booleano'),
-]
-
 export const configuracoesDetalhes = {
   usuario: { titulo: 'Dados do usuário', endpoint: 'users', campos: pessoais() },
   motorista: {
@@ -66,7 +41,6 @@ export const configuracoesDetalhes = {
     imagem: 'foto',
     campos: [...pessoais(), ...contatos],
   },
-  veiculo: { titulo: 'Dados do veículo', endpoint: 'veiculos', campos: veiculo },
   corrida: {
     titulo: 'Dados da corrida',
     campos: [

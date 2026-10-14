@@ -1,8 +1,7 @@
 <template>
   <q-page class="q-pa-md">
-    <!-- <CriarVeiculo @onRequest="onRequest" v-model="dialog.criar" /> -->
     <VisualizarRegistro v-model="dialog.mostrar" tipo="tarifa" :registro="registroVisualizado" />
-    <ExcluirVeiculo
+    <ExcluirRegistro
       :acao="openPress"
       :data="usuarioSelecionado"
       @deleted="onRequest"
@@ -31,15 +30,6 @@
             placeholder="Pesquisar"
             @keyup.enter="buscarDados"
           >
-            <template #before>
-              <!-- <q-btn
-                icon="add_box"
-                label="CRIAR VEÍCULO"
-                color="primary"
-                @click="dialog.criar = true"
-              /> -->
-            </template>
-
             <template v-if="search" #append>
               <q-icon name="close" class="cursor-pointer" @click="clearSearch" />
             </template>
@@ -92,9 +82,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { api } from 'boot/axios'
-// import CriarVeiculo from 'src/components/veiculos/CriarVeiculo.vue'
 import VisualizarRegistro from 'src/components/VisualizarRegistro.vue'
-import ExcluirVeiculo from 'src/components/veiculos/ExcluirVeiculo.vue'
+import ExcluirRegistro from 'src/components/ExcluirRegistro.vue'
 
 // STATES
 const data = ref([])

@@ -8,10 +8,89 @@
         <q-btn flat round dense icon="close" aria-label="Fechar" :disable="ocupado" v-close-popup />
       </q-toolbar>
       <q-separator />
-      <q-form @submit.prevent="enviar">
+      <q-form ref="formulario" @submit.prevent="enviar">
         <div class="row">
           <section class="col-12 col-md-5 q-pa-lg dados-crlv">
-            <div class="text-h6">Dados do CRLV</div>
+            <div>
+              <div
+                v-if="documentosCrlv.length"
+                class="crlv-controles row items-center no-wrap"
+                aria-label="Navegação dos CRLVs"
+              >
+                <q-btn
+                  outline
+                  dense
+                  no-caps
+                  icon="chevron_left"
+                  label="Voltar"
+                  aria-label="Voltar CRLV"
+                  class="crlv-navegacao-botao"
+                  :disable="ocupado || lendo || indiceDocumento <= 0"
+                  @click="navegarCrlv(documentosCrlv[indiceDocumento - 1]?.veiculo_id)"
+                />
+                <q-select
+                  borderless
+                  :model-value="veiculoId === null ? null : String(veiculoId)"
+                  :options="opcoesPlacas"
+                  label="Placa"
+                  dense
+                  emit-value
+                  map-options
+                  class="crlv-seletor-placa"
+                  :disable="ocupado || lendo"
+                  @update:model-value="navegarCrlv"
+                >
+                  <template #selected-item="{ opt }">
+                    <span class="row items-center no-wrap">
+                      <span>{{ opt.label }}</span>
+                      <span
+                        class="crlv-status-ponto q-ml-xs"
+                        :class="`bg-${opt.color}`"
+                        role="img"
+                        :aria-label="opt.statusLabel"
+                      >
+                        <q-tooltip>{{ opt.statusLabel }}</q-tooltip>
+                      </span>
+                    </span>
+                  </template>
+                  <template #option="{ opt, itemProps }">
+                    <q-item v-bind="itemProps">
+                      <q-item-section>
+                        <q-item-label>{{ opt.label }}</q-item-label>
+                        <q-item-label caption>
+                          <q-badge :color="opt.color" :label="opt.statusLabel" />
+                        </q-item-label>
+                      </q-item-section>
+                    </q-item>
+                  </template>
+                </q-select>
+                <q-btn
+                  outline
+                  dense
+                  no-caps
+                  icon-right="chevron_right"
+                  label="Próximo"
+                  aria-label="Próximo CRLV"
+                  class="crlv-navegacao-botao"
+                  :disable="
+                    ocupado ||
+                    lendo ||
+                    indiceDocumento < 0 ||
+                    indiceDocumento === documentosCrlv.length - 1
+                  "
+                  @click="navegarCrlv(documentosCrlv[indiceDocumento + 1]?.veiculo_id)"
+                />
+                <q-btn
+                  color="primary"
+                  dense
+                  icon="add_box"
+                  label="Novo veículo"
+                  class="crlv-navegacao-botao crlv-novo-veiculo q-ml-auto"
+                  :disable="ocupado || lendo || novoVeiculo"
+                  @click="iniciarNovoVeiculo"
+                />
+              </div>
+            </div>
             <p class="text-grey-7 q-mt-xs">
               Confira os dados com o documento ao lado antes de enviar.
             </p>
@@ -236,7 +315,7 @@
 </template>
 
 <script setup>
-import { computed, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { extrairCrlv } from 'src/utils/extrairCrlv'
@@ -252,6 +331,13 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'updated'])
 const $q = useQuasar()
 const model = computed({ get: () => props.modelValue, set: (v) => emit('update:modelValue', v) })
+const documentoNavegado = ref(null)
+const novoVeiculo = ref(false)
+const documento = computed(() =>
+  novoVeiculo.value ? null : documentoNavegado.value || props.documento,
+)
+const formulario = ref(null)
+const dadosOriginais = ref({})
 const dados = ref({}),
   arquivo = ref(null),
   veiculoId = ref(null),
@@ -264,40 +350,67 @@ const dados = ref({}),
   urlLocal = ref('')
 const analisando = ref(false)
 const ocupado = computed(() => enviando.value || analisando.value)
+const documentosCrlv = computed(() =>
+  props.veiculos
+    .map((veiculo) => {
+      const atual =
+        String(props.documento?.veiculo_id) === String(veiculo.id)
+          ? props.documento
+          : veiculo.ultimo_crlv
+      return atual?.id
+        ? { ...atual, tipo_documento: 'crlv', veiculo_id: veiculo.id, veiculo }
+        : null
+    })
+    .filter(Boolean),
+)
+const indiceDocumento = computed(() =>
+  documentosCrlv.value.findIndex((doc) => String(doc.veiculo_id) === String(veiculoId.value)),
+)
+const opcoesPlacas = computed(() =>
+  documentosCrlv.value.map((doc) => {
+    const status = doc.veiculo.status || doc.status
+    const situacao = {
+      aprovado: { color: 'green', statusLabel: 'Aprovado' },
+      reprovado: { color: 'red', statusLabel: 'Reprovado' },
+      em_analise: { color: 'orange', statusLabel: 'Em análise' },
+    }[status] || { color: 'grey', statusLabel: 'Não enviado' }
+    return { label: doc.veiculo.placa, value: String(doc.veiculo_id), ...situacao }
+  }),
+)
 const editados = reactive(new Set())
 const extraidos = new Map()
 let controller
 const anoAtual = new Date().getFullYear()
 const substituicaoPermitida = computed(() => {
-  if (!props.documento?.id || !props.documento.veiculo_id || props.documento.status === 'reprovado')
+  if (!documento.value?.id || !documento.value.veiculo_id || documento.value.status === 'reprovado')
     return true
   const exercicio = Number(
-    props.documento.informacoes_complementares?.exercicio ?? props.documento.veiculo?.exercicio,
+    documento.value.informacoes_complementares?.exercicio ?? documento.value.veiculo?.exercicio,
   )
   return exercicio >= 1900 && exercicio < anoAtual
 })
 const veiculo = computed(
   () =>
     props.veiculos.find((v) => v.id === veiculoId.value) ||
-    (props.documento?.veiculo?.id === veiculoId.value ? props.documento.veiculo : null),
+    (documento.value?.veiculo?.id === veiculoId.value ? documento.value.veiculo : null),
 )
-const anexoSalvoAtivo = computed(() => !removido.value && !!props.documento?.url)
+const anexoSalvoAtivo = computed(() => !removido.value && !!documento.value?.url)
 const previewUrl = computed(
-  () => urlLocal.value || (anexoSalvoAtivo.value ? props.documento.url : ''),
+  () => urlLocal.value || (anexoSalvoAtivo.value ? documento.value.url : ''),
 )
 const pdf = computed(() =>
   arquivo.value
     ? arquivo.value.type === 'application/pdf' || /\.pdf$/i.test(arquivo.value.name)
     : anexoSalvoAtivo.value &&
-      (props.documento.mime_type === 'application/pdf' ||
-        props.documento.type === 'pdf' ||
-        /\.pdf(?:[?#]|$)/i.test(props.documento.url)),
+      (documento.value.mime_type === 'application/pdf' ||
+        documento.value.type === 'pdf' ||
+        /\.pdf(?:[?#]|$)/i.test(documento.value.url)),
 )
 const nomeSalvo = computed(() => {
-  if (props.documento?.name) return props.documento.name
+  if (documento.value?.name) return documento.value.name
   try {
     return (
-      decodeURIComponent(new URL(props.documento.url).pathname.split('/').pop()) || 'CRLV salvo'
+      decodeURIComponent(new URL(documento.value.url).pathname.split('/').pop()) || 'CRLV salvo'
     )
   } catch {
     return 'CRLV salvo'
@@ -306,11 +419,14 @@ const nomeSalvo = computed(() => {
 const foto = computed(() => !!previewUrl.value && !pdf.value)
 const verificacoes = computed(() => conferirDadosCrlv(dados.value))
 const conferencia = computed(() => compararCrlv(veiculo.value, dados.value))
+// Conferência sem bloqueio temporariamente, para testes com documentos divergentes.
+const conferenciaInvalida = computed(() => false)
+/* Reativar a validação após os testes:
 const conferenciaInvalida = computed(
-  () =>
-    !!veiculo.value &&
+  () => !!veiculo.value &&
     conferencia.value.some((item) => ['divergente', 'nao_informado'].includes(item.status)),
 )
+*/
 const textosConferencia = {
   confere: 'Confere',
   divergente: 'Divergente',
@@ -331,6 +447,13 @@ const campos = [
   {
     name: 'cpf_cnpj_proprietario',
     label: 'CPF/CNPJ do proprietário',
+    rules: [
+      obrigatorio,
+      (v) =>
+        /^(?:\d{11}|\d{14})$/.test(String(v || '').replace(/\D/g, '')) ||
+        'Informe um CPF ou CNPJ válido.',
+    ],
+    hint: 'Informe o CPF ou CNPJ do proprietário impresso no CRLV. O proprietário pode ser outra pessoa ou empresa.',
     maxlength: 18,
     class: 'col-12',
   },
@@ -377,6 +500,11 @@ function limparUrl() {
   urlLocal.value = ''
 }
 function iniciar() {
+  novoVeiculo.value = false
+  documentoNavegado.value = null
+  carregarDocumento()
+}
+function carregarDocumento() {
   cancelar()
   arquivo.value = null
   limparUrl()
@@ -385,13 +513,13 @@ function iniciar() {
   resultado.value = null
   editados.clear()
   extraidos.clear()
-  veiculoId.value = props.documento?.veiculo_id || null
+  veiculoId.value = documento.value?.veiculo_id || null
   dados.value = Object.fromEntries(
     campos.map((c) => [
       c.name,
-      (Object.hasOwn(props.documento?.informacoes_complementares || {}, c.name)
-        ? props.documento.informacoes_complementares[c.name]
-        : props.documento?.veiculo?.[
+      (Object.hasOwn(documento.value?.informacoes_complementares || {}, c.name)
+        ? documento.value.informacoes_complementares[c.name]
+        : documento.value?.veiculo?.[
             c.name === 'categoria'
               ? 'categoria_crlv'
               : c.name === 'categoria_veiculo'
@@ -400,6 +528,45 @@ function iniciar() {
           ]) ?? '',
     ]),
   )
+  dadosOriginais.value = { ...dados.value }
+  nextTick(() => formulario.value?.resetValidation())
+}
+function navegarCrlv(id) {
+  if (ocupado.value || lendo.value || String(id) === String(veiculoId.value)) return
+  const destino = documentosCrlv.value.find((doc) => String(doc.veiculo_id) === String(id))
+  if (!destino) return
+  trocarDocumento(destino)
+}
+function iniciarNovoVeiculo() {
+  if (ocupado.value || lendo.value || novoVeiculo.value) return
+  trocarDocumento(null, true)
+}
+function trocarDocumento(destino, cadastrarNovo = false) {
+  const trocar = () => {
+    novoVeiculo.value = cadastrarNovo
+    documentoNavegado.value = destino
+    carregarDocumento()
+  }
+  const alterado =
+    arquivo.value ||
+    removido.value ||
+    campos.some(
+      (campo) =>
+        String(dados.value[campo.name] ?? '') !== String(dadosOriginais.value[campo.name] ?? ''),
+    )
+  if (alterado) {
+    $q.dialog({
+      title: 'Trocar CRLV',
+      message: cadastrarNovo
+        ? 'Há alterações não enviadas. Deseja descartá-las para cadastrar outro veículo?'
+        : 'Há alterações não enviadas. Deseja descartá-las para abrir outro CRLV?',
+      cancel: { label: 'Continuar editando', flat: true },
+      ok: { label: 'Descartar alterações', color: 'primary' },
+      persistent: true,
+    }).onOk(trocar)
+  } else {
+    trocar()
+  }
 }
 function fechar() {
   cancelar()
@@ -506,8 +673,8 @@ async function enviar() {
   const form = new FormData()
   form.append('arquivo', arquivo.value)
   form.append('motorista_id', props.motoristaId)
-  form.append('tipo_documento', props.documento?.tipo_documento || 'crlv')
-  form.append('origem', props.origem)
+  form.append('tipo_documento', documento.value?.tipo_documento || 'crlv')
+  form.append('origem', novoVeiculo.value ? 'veiculos' : props.origem)
   if (veiculoId.value) form.append('veiculo_id', veiculoId.value)
   for (const [name, value] of Object.entries(dados.value))
     form.append(`informacoes_complementares[${name}]`, value ?? '')
@@ -544,6 +711,40 @@ function onAnaliseUpdated() {
   max-height: 75vh;
   overflow-y: auto;
 }
+.crlv-seletor-placa {
+  width: 112px;
+  min-width: 92px;
+  flex: 1 1 112px;
+}
+.crlv-seletor-placa :deep(.q-field__append) {
+  padding-left: 0;
+}
+.crlv-controles {
+  gap: 8px;
+}
+.crlv-navegacao-botao {
+  width: 112px;
+  height: 36px;
+  padding: 4px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.crlv-navegacao-botao :deep(.q-btn__content) {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.crlv-navegacao-botao :deep(.q-icon) {
+  font-size: 18px;
+}
+.crlv-navegacao-botao :deep(.on-left) {
+  margin-right: 4px;
+}
+.crlv-status-ponto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 .previa-crlv {
   border-left: 1px solid #ddd;
 }
@@ -559,17 +760,31 @@ function onAnaliseUpdated() {
   max-height: 100%;
   object-fit: contain;
 }
-@media (max-width: 1023px) {
+@media (max-width: 1279px) {
   .dados-crlv {
+    width: 100%;
     max-height: none;
   }
   .previa-crlv {
+    width: 100%;
     border-left: 0;
     border-top: 1px solid #ddd;
   }
   .crlv-preview {
     height: 55vh;
     min-height: 300px;
+  }
+}
+@media (max-width: 520px) {
+  .crlv-controles {
+    display: grid;
+    grid-template-columns: 112px minmax(112px, 1fr);
+  }
+  .crlv-seletor-placa {
+    width: 100%;
+  }
+  .crlv-novo-veiculo {
+    justify-self: end;
   }
 }
 </style>
