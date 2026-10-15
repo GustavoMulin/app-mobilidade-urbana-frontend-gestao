@@ -25,9 +25,9 @@ export default route(function () {
     const authStore = useAuthStore()
 
     const token = localStorage.getItem('token')
-    if (token && (!authStore.user || to.meta.requiresAuth)) {
+    if (token) {
       try {
-        await authStore.fetchUser()
+        await authStore.ensureUser()
       } catch {
         if (!authStore.user) authStore.clearSession()
       }
