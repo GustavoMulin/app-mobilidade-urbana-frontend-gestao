@@ -21,6 +21,7 @@
     "@tesseract.js-data/por": "1.0.0",
     "axios": "^1.15.0",
     "laravel-echo": "^2.6.1",
+    "leaflet": "^1.9.4",
     "moment": "^2.30.1",
     "pdfjs-dist": "6.4.299",
     "pinia": "^3.0.1",

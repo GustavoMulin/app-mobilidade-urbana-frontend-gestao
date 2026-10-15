@@ -1,6 +1,7 @@
 export const statusTickets = [
   { value: 'open', label: 'Aberto', color: 'blue' },
   { value: 'in_progress', label: 'Em atendimento', color: 'primary' },
+  { value: 'waiting', label: 'Aguardando atendimento', color: 'amber-9' },
   { value: 'pending', label: 'Aguardando resposta', color: 'orange-8' },
   { value: 'resolved', label: 'Resolvido', color: 'positive' },
   { value: 'closed', label: 'Fechado', color: 'grey-7' },
@@ -16,6 +17,12 @@ export const motivosTickets = [
 
 export const statusTicket = (value) =>
   statusTickets.find((item) => item.value === value) || statusTickets[0]
+export const gestaoGlobalTickets = (user) => ['gestao', 'admin'].includes(user?.perfil_acesso)
+export const visualizaEntradaTickets = (user) =>
+  gestaoGlobalTickets(user) || user?.perfil_acesso === 'atendimento'
+export const podeAcessarResponsavelTicket = (user, responsavelId) =>
+  gestaoGlobalTickets(user) ||
+  (responsavelId == null ? visualizaEntradaTickets(user) : responsavelId === user?.id)
 export const motivoTicket = (value) =>
   motivosTickets.find((item) => item.value === value)?.label || value
 export const erroTicket = (error) =>
