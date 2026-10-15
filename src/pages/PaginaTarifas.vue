@@ -54,10 +54,12 @@
             <q-td key="tarifa">
               <q-item>
                 <q-item-section>
-                  <q-item-label class="text-bold"> {{ props.row.produto.nome }}</q-item-label>
+                  <q-item-label class="text-bold">
+                    {{ props.row.produto?.nome || 'Tarifa geral' }}</q-item-label
+                  >
                   <q-item-label class="estilo-coluna">
-                    <div>Tafia base: {{ props.row.tarifa_base }}</div>
-                    <div>Valor por km: {{ props.row.valor_por_km }}</div>
+                    <div>Tarifa base: {{ emReais(props.row.tarifa_base) }}</div>
+                    <div>Valor por km: {{ emReais(props.row.valor_por_km) }}</div>
                   </q-item-label>
                 </q-item-section>
               </q-item>
@@ -91,6 +93,11 @@ import { api } from 'boot/axios'
 import MostrarVeiculo from 'src/components/veiculos/MostrarVeiculo.vue'
 import EditarVeiculo from 'src/components/veiculos/EditarVeiculo.vue'
 import ExcluirVeiculo from 'src/components/veiculos/ExcluirVeiculo.vue'
+
+const emReais = (valor) =>
+  valor === null || valor === undefined || valor === ''
+    ? '—'
+    : Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 // STATES
 const data = ref([])

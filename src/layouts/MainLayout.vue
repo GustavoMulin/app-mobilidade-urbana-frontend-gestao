@@ -210,7 +210,7 @@ export default {
       toggleLeftDrawer,
 
       links1: [
-        { icon: 'groups_2', text: 'Usuarios', to: '/usuarios' },
+        { icon: 'groups_2', text: 'Usuários', to: '/usuarios' },
         { icon: 'manage_accounts', text: 'Gestores', to: '/gestores' },
         { icon: 'directions_car', text: 'Veículos', to: '/veiculos' },
         { icon: 'group', text: 'Motoristas', to: '/motoristas' },
