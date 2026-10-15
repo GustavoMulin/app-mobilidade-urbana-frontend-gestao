@@ -3,11 +3,16 @@ import { ref, computed } from 'vue'
 import { api } from 'boot/axios'
 import { disconnectEcho } from 'src/services/echo'
 
+const USER_REFRESH_INTERVAL = 60_000
+
 export const useAuthStore = defineStore('auth', () => {
   // --- STATE ---
   const user = ref(null)
   const token = ref(localStorage.getItem('token') || null)
   let refreshPromise = null
+  let userRequest = null
+  let userFetchedAt = 0
+  let sessionVersion = 0
 
   // --- GETTERS ---
   const isAuthenticated = computed(() => !!token.value)
@@ -20,14 +25,35 @@ export const useAuthStore = defineStore('auth', () => {
   // --- ACTIONS ---
 
   // Função para buscar dados do usuário logado
-  async function fetchUser() {
-    try {
-      const response = await api.get('/usuario-logado')
-      user.value = response.data
-      return response
-    } catch (error) {
-      if (error.response?.status === 401) clearSession()
-      throw error
+  function fetchUser() {
+    if (userRequest) return userRequest
+    const version = sessionVersion
+    const request = api
+      .get('/usuario-logado')
+      .then((response) => {
+        if (version === sessionVersion) {
+          user.value = response.data
+          userFetchedAt = Date.now()
+        }
+        return response
+      })
+      .catch((error) => {
+        if (version === sessionVersion && error.response?.status === 401) clearSession()
+        throw error
+      })
+      .finally(() => {
+        if (userRequest === request) userRequest = null
+      })
+    userRequest = request
+    return request
+  }
+
+  function ensureUser() {
+    // A primeira navegação aguarda as permissões; as seguintes usam a sessão carregada.
+    if (!user.value) return fetchUser()
+    if (Date.now() - userFetchedAt >= USER_REFRESH_INTERVAL) {
+      // Revalida durante a navegação sem bloquear a abertura da página.
+      void fetchUser().catch(() => {})
     }
   }
 
@@ -38,6 +64,10 @@ export const useAuthStore = defineStore('auth', () => {
     const newToken = response.data.token
 
     // Guarda o token
+    sessionVersion++
+    userRequest = null
+    userFetchedAt = 0
+    user.value = null
     setToken(newToken)
 
     // Busca dados do usuário
@@ -49,6 +79,9 @@ export const useAuthStore = defineStore('auth', () => {
   // Logout
   function clearSession() {
     disconnectEcho()
+    sessionVersion++
+    userRequest = null
+    userFetchedAt = 0
     user.value = null
     setToken(null)
   }
@@ -101,5 +134,6 @@ export const useAuthStore = defineStore('auth', () => {
     clearSession,
     refreshToken,
     fetchUser,
+    ensureUser,
   }
 })

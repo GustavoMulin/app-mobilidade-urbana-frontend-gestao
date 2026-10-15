@@ -41,7 +41,7 @@
       }}<template #action><q-btn flat label="Tentar novamente" @click="carregar" /></template>
     </q-banner>
     <div v-else class="row q-col-gutter-lg">
-      <div v-for="regra in filtradas" :key="regra.codigo" class="col-12 col-md-4">
+      <div v-for="regra in filtradas" :key="regra.codigo" class="col-12 col-sm-6 col-lg-3">
         <q-card flat bordered class="regra-card full-height column">
           <q-card-section>
             <div class="row items-center justify-between q-mb-lg">
@@ -106,9 +106,15 @@ const regras = ref([]),
   erro = ref(''),
   dialog = ref(false),
   selecionada = ref(null)
-const cores = { atendimento: 'blue', gestao: 'teal', admin: 'indigo' }
+const cores = {
+  atendimento: 'blue',
+  suporte_tecnico: 'deep-purple',
+  gestao: 'teal',
+  admin: 'indigo',
+}
 const icones = {
   atendimento: 'support_agent',
+  suporte_tecnico: 'engineering',
   gestao: 'assignment_ind',
   admin: 'admin_panel_settings',
 }
