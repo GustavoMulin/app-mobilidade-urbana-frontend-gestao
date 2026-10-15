@@ -283,7 +283,7 @@ function preencherDados() {
     name: 'Usuário de teste',
     cpf: String(identificador).slice(-11),
     data_nascimento: '1992-11-21',
-    telefone: '69981400661',
+    telefone: `699${String(identificador).slice(-8)}`,
     email: `${props.tipoUsuario}.${identificador}@example.com`,
     password: 'password',
     password_confirmation: 'password',

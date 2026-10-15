@@ -1,8 +1,13 @@
 <template>
   <q-page class="q-pa-md">
     <CriarUsuario tipoUsuario="passageiro" @created="onRequest" v-model="dialog.cadastrar" />
-    <EditarUsuario @updated="onRequest" v-model="dialog.editar" :usuarioId="usuarioId" />
-    <MostrarUsuario v-model="dialog.visualizar" />
+    <MostrarUsuario
+      v-model="dialog.visualizar"
+      :usuario-id="usuarioId"
+      tipoUsuario="passageiro"
+      :registro="registroVisualizado"
+      @updated="onRequest"
+    />
     <DocumentosUsuario :usuario="usuario" v-model="dialog.documentos" />
     <MotoristaVeiculos :usuario="usuario" v-model="dialog.veiculos" />
     <ExcluirUsuario
@@ -37,6 +42,7 @@
                 class="q-mr-sm"
                 icon="person_add_alt"
                 label="CRIAR PASSAGEIRO"
+                v-if="pode('usuarios.gerenciar')"
                 color="primary"
                 @click="dialog.cadastrar = true"
               />
@@ -98,13 +104,25 @@
             </q-td>
 
             <q-td key="acoes" align="center">
-              <q-btn @click="openEditar(props.row.user.id)" dense flat icon="visibility">
+              <q-btn
+                @click="openVisualizar(props.row)"
+                dense
+                flat
+                icon="visibility"
+                aria-label="Visualizar registro"
+              >
                 <template v-slot:loading>
                   <q-spinner-hourglass />
                 </template>
               </q-btn>
 
-              <q-btn @click="openExcluir(props.row)" dense flat icon="delete">
+              <q-btn
+                v-if="pode('usuarios.gerenciar')"
+                @click="openExcluir(props.row)"
+                dense
+                flat
+                icon="delete"
+              >
                 <q-tooltip transition-show="flip-right" transition-hide="flip-left">
                   arquivar
                 </q-tooltip>
@@ -118,11 +136,12 @@
 </template>
 
 <script setup>
+import { useAuthStore } from 'src/stores/auth'
+const { pode } = useAuthStore()
 import { ref, reactive, onMounted } from 'vue'
 import { api } from 'boot/axios'
 import CriarUsuario from 'src/components/usuarios/CriarUsuario.vue'
 import MostrarUsuario from 'src/components/usuarios/MostrarUsuario.vue'
-import EditarUsuario from 'src/components/usuarios/EditarUsuario.vue'
 import ExcluirUsuario from 'src/components/usuarios/ExcluirUsuario.vue'
 import DocumentosUsuario from 'src/components/usuarios/DocumentosUsuario.vue'
 import MotoristaVeiculos from 'src/components/motorista/MotoristaVeiculos.vue'
@@ -149,6 +168,7 @@ const dialog = reactive({
 })
 
 const usuarioId = ref(null)
+const registroVisualizado = ref(null)
 const usuario = ref({})
 
 const pagination = ref({
@@ -179,9 +199,10 @@ const clearSearch = () => {
   buscarDados()
 }
 
-const openEditar = (id) => {
-  usuarioId.value = id
-  dialog.editar = true
+const openVisualizar = (registro) => {
+  usuarioId.value = registro.id
+  registroVisualizado.value = registro
+  dialog.visualizar = true
 }
 
 const openExcluir = (usuario) => {

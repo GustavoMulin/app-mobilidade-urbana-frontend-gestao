@@ -5,15 +5,7 @@
         <q-toolbar-title class="text-weight-bold">{{
           documento?.status === 'reprovado' ? 'Reenviar Nada Consta' : 'Nada Consta'
         }}</q-toolbar-title>
-        <q-btn
-          flat
-          round
-          dense
-          icon="close"
-          aria-label="Fechar"
-          :disable="enviando"
-          v-close-popup
-        />
+        <q-btn flat round dense icon="close" aria-label="Fechar" :disable="ocupado" v-close-popup />
       </q-toolbar>
       <q-separator />
       <q-form @submit.prevent="enviar">
@@ -34,7 +26,7 @@
               :display-value="anexoSalvoAtivo ? nomeSalvo : undefined"
               accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
               :max-file-size="2097152"
-              :disable="lendo || enviando"
+              :disable="lendo || ocupado || !pode('documentos.analisar')"
               :rules="anexoSalvoAtivo ? undefined : [(v) => !!v || 'Selecione um arquivo']"
               :error="!!errors.arquivo"
               :error-message="errors.arquivo?.[0]"
@@ -54,7 +46,7 @@
                   color="grey-6"
                   icon="cancel"
                   aria-label="Remover documento atual"
-                  :disable="lendo || enviando"
+                  :disable="lendo || ocupado || !pode('documentos.analisar')"
                   @click.stop.prevent="removerAnexo"
                 >
                   <q-tooltip>Remover documento atual</q-tooltip>
@@ -90,7 +82,7 @@
                     :stack-label="['date', 'time'].includes(campo.type)"
                     :autogrow="campo.type === 'textarea'"
                     :maxlength="campo.maxlength"
-                    :disable="lendo || enviando"
+                    :disable="lendo || ocupado || !pode('documentos.analisar')"
                     :rules="campo.rules"
                     :hint="campo.hint"
                     :mask="campo.mask"
@@ -135,7 +127,7 @@
                   no-caps
                   icon="content_copy"
                   label="Copiar número"
-                  :disable="!dados.numero_certidao || lendo || enviando"
+                  :disable="!dados.numero_certidao || lendo || ocupado"
                   @click="copiarNumero"
                 />
                 <q-btn
@@ -186,13 +178,21 @@
         </div>
         <q-separator />
         <q-card-actions align="right" class="q-pa-md">
-          <q-btn flat label="Cancelar" :disable="enviando" v-close-popup />
+          <AcoesAnaliseDocumento
+            :documento="documento"
+            v-model:loading="analisando"
+            :disable="ocupado || lendo || removido || !!arquivo"
+            @updated="onAnaliseUpdated"
+          />
+          <q-space />
+          <q-btn flat label="Cancelar" :disable="ocupado" v-close-popup />
           <q-btn
             color="primary"
             type="submit"
             label="Enviar"
+            v-if="pode('documentos.analisar')"
             :loading="enviando"
-            :disable="!podeEnviar"
+            :disable="ocupado || !podeEnviar"
           />
         </q-card-actions>
       </q-form>
@@ -201,11 +201,14 @@
 </template>
 
 <script setup>
+import { useAuthStore } from 'src/stores/auth'
+const { pode } = useAuthStore()
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { copyToClipboard, useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { extrairNadaConsta } from 'src/utils/extrairNadaConsta'
 import { URL_VALIDACAO_PF } from 'src/utils/nadaConsta'
+import AcoesAnaliseDocumento from 'src/components/motorista/AcoesAnaliseDocumento.vue'
 
 const props = defineProps({ modelValue: Boolean, motoristaId: [String, Number], documento: Object })
 const emit = defineEmits(['update:modelValue', 'updated'])
@@ -223,6 +226,8 @@ const dados = ref({}),
   errors = ref({}),
   progresso = ref('Lendo a certidão…'),
   urlLocal = ref('')
+const analisando = ref(false)
+const ocupado = computed(() => enviando.value || analisando.value)
 let controller
 const anexoSalvoAtivo = computed(() => !removido.value && !!props.documento?.url)
 const previewUrl = computed(
@@ -327,7 +332,7 @@ function fechar() {
   arquivo.value = null
 }
 function removerAnexo() {
-  if (lendo.value || enviando.value) return
+  if (lendo.value || ocupado.value) return
   removido.value = true
   errors.value = {}
   resultado.value = null
@@ -402,7 +407,7 @@ async function copiarNumero() {
   }
 }
 async function enviar() {
-  if (!podeEnviar.value || enviando.value) return
+  if (!podeEnviar.value || ocupado.value) return
   enviando.value = true
   errors.value = {}
   const form = new FormData()
@@ -427,6 +432,11 @@ async function enviar() {
   } finally {
     enviando.value = false
   }
+}
+
+function onAnaliseUpdated() {
+  emit('updated')
+  model.value = false
 }
 </script>
 

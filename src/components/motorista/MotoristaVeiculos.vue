@@ -1,8 +1,14 @@
 <template>
   <section>
+    <CompartilharVeiculo
+      v-model="compartilhar"
+      :veiculo="veiculoCompartilhado"
+      @updated="atualizarAposCadastro"
+    />
     <SubirCrlv
       :motorista-id="motoristaId"
       :documento="documentoSelecionado"
+      :veiculos="veiculosCrlv"
       origem="veiculos"
       @updated="atualizarAposCadastro"
       v-model="dialog"
@@ -72,6 +78,7 @@
                     <q-btn
                       icon="add_box"
                       label="ADICIONAR VEÍCULO"
+                      v-if="pode('veiculos.gerenciar')"
                       color="primary"
                       :disable="
                         !motoristaId ||
@@ -134,6 +141,7 @@
                   <q-td key="acoes" align="center">
                     <q-btn
                       v-if="
+                        pode('documentos.analisar') &&
                         props.row.veiculo.ultimo_crlv &&
                         ['em_analise', 'aprovado'].includes(props.row.veiculo.status)
                       "
@@ -148,6 +156,7 @@
                     >
                     <q-btn
                       v-if="
+                        pode('documentos.analisar') &&
                         props.row.veiculo.ultimo_crlv &&
                         ['em_analise', 'reprovado'].includes(props.row.veiculo.status)
                       "
@@ -175,7 +184,18 @@
                         <q-spinner-hourglass />
                       </template>
                     </q-btn>
-                    <q-btn dense flat icon="delete">
+                    <q-btn
+                      dense
+                      flat
+                      icon="groups_2"
+                      aria-label="Compartilhar veículo"
+                      v-if="pode('veiculos.gerenciar')"
+                      :disable="loading || alterandoStatus"
+                      @click="abrirCompartilhamento(props.row.veiculo)"
+                    >
+                      <q-tooltip>Compartilhar veículo</q-tooltip>
+                    </q-btn>
+                    <q-btn v-if="pode('veiculos.gerenciar')" dense flat icon="delete">
                       <template v-slot:loading>
                         <q-spinner-hourglass />
                       </template>
@@ -192,8 +212,11 @@
 </template>
 
 <script setup>
+import { useAuthStore } from 'src/stores/auth'
+const { pode } = useAuthStore()
 import { computed, ref } from 'vue'
 import SubirCrlv from 'src/components/motorista/SubirCrlv.vue'
+import CompartilharVeiculo from 'src/components/motorista/CompartilharVeiculo.vue'
 import JanelaConfirmacao from 'src/components/JanelaConfirmacao.vue'
 import ReprovarDocumento from 'src/components/motorista/ReprovarDocumento.vue'
 import { useQuasar } from 'quasar'
@@ -232,7 +255,14 @@ const $q = useQuasar()
 let requestVersion = 0
 const search = ref('')
 const dialog = ref(false)
+const compartilhar = ref(false)
+const veiculoCompartilhado = ref(null)
+function abrirCompartilhamento(veiculo) {
+  veiculoCompartilhado.value = veiculo
+  compartilhar.value = true
+}
 const data = ref([])
+const veiculosCrlv = ref([])
 
 const pagination = ref({
   page: 1,
@@ -272,6 +302,7 @@ const columns = [
 // LIFECYCLE
 function beforeShow() {
   data.value = []
+  veiculosCrlv.value = []
   possuiVeiculoCadastrado.value = false
   search.value = ''
   pagination.value.page = 1
@@ -380,6 +411,7 @@ const request = async (payload) => {
 
     if (version !== requestVersion) return
     data.value = response.data.data
+    veiculosCrlv.value = response.data.veiculos || data.value.map((row) => row.veiculo)
     possuiVeiculoCadastrado.value =
       response.data.possui_veiculo_cadastrado ?? response.data.total > 0
 

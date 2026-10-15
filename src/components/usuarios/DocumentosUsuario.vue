@@ -75,10 +75,6 @@
                     <q-item-label class="estilo-coluna" caption>
                       {{ props.row.descricao }}
                     </q-item-label>
-                    <q-item-label v-if="props.row.veiculo" class="text-weight-medium">
-                      {{ props.row.veiculo.placa }} — {{ props.row.veiculo.marca }}
-                      {{ props.row.veiculo.modelo }}
-                    </q-item-label>
                     <q-item-label v-if="props.row.legado" caption
                       >Documento anterior sem veículo identificado</q-item-label
                     >
@@ -86,7 +82,23 @@
                       >Envie o CRLV para cadastrar o veículo.</q-item-label
                     >
                     <q-item-label caption>
+                      <div
+                        v-if="
+                          props.row.tipo_documento === 'crlv' &&
+                          !props.row.legado &&
+                          badgesCrlv.length
+                        "
+                        class="row q-gutter-xs"
+                      >
+                        <q-badge
+                          v-for="badge in badgesCrlv"
+                          :key="badge.status"
+                          :color="badgeColor(badge.status)"
+                          :label="`${badge.label} ${badge.quantidade}`"
+                        />
+                      </div>
                       <q-badge
+                        v-else
                         :color="badgeColor(props.row.status)"
                         :label="props.row.status ? formatarStatus(props.row.status) : 'Não enviado'"
                       />
@@ -175,7 +187,7 @@
                     round
                     dense
                     :aria-label="
-                      props.row.status === 'reprovado'
+                      !props.row.id && props.row.status === 'reprovado'
                         ? 'Reenviar documento'
                         : props.row.id
                           ? 'Expandir documento'
@@ -188,7 +200,7 @@
                     />
                     <q-tooltip transition-show="flip-right" transition-hide="flip-left">
                       {{
-                        props.row.status === 'reprovado'
+                        !props.row.id && props.row.status === 'reprovado'
                           ? 'Reenviar documento'
                           : props.row.id
                             ? 'Expandir documento'
@@ -215,6 +227,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from 'src/stores/auth'
+const { pode } = useAuthStore()
 import { computed, ref } from 'vue'
 import { exportFile, useQuasar } from 'quasar'
 import { api } from 'boot/axios'
@@ -258,6 +272,26 @@ const dialog = ref({
 
 const data = ref([])
 const veiculos = ref([])
+const badgesCrlv = computed(() => {
+  const documentos = veiculos.value.length
+    ? veiculos.value.map(
+        (veiculo) =>
+          veiculo.ultimo_crlv ||
+          data.value.find((doc) => doc.tipo_documento === 'crlv' && doc.veiculo_id === veiculo.id),
+      )
+    : data.value.filter((doc) => doc.tipo_documento === 'crlv' && !doc.legado && doc.id)
+  return [
+    { status: 'aprovado', label: 'Aprovado' },
+    { status: 'reprovado', label: 'Reprovado' },
+    { status: 'em_analise', label: 'Em análise' },
+    { status: null, label: 'Não enviado' },
+  ]
+    .map((badge) => ({
+      ...badge,
+      quantidade: documentos.filter((doc) => (doc?.status || null) === badge.status).length,
+    }))
+    .filter((badge) => badge.quantidade > 0)
+})
 const carregandoDocumentos = ref(false)
 const erroCarregamento = ref(false)
 const baixandoDocumento = ref(null)
@@ -276,6 +310,7 @@ const columns = [
 
 function beforeShow() {
   data.value = []
+  veiculos.value = []
   getMotoristaDocumentos()
 }
 
@@ -287,6 +322,7 @@ function abrirEnvio(documento) {
 function onBeforeHide() {
   documentosVersion++
   data.value = []
+  veiculos.value = []
   carregandoDocumentos.value = false
   erroCarregamento.value = false
 }
@@ -294,13 +330,16 @@ function onBeforeHide() {
 function visibilidadeBotoes(status, tipo, documento) {
   switch (tipo) {
     case 'reprovar':
-      return status === 'em_analise' || status === 'aprovado'
+      return pode('documentos.analisar') && (status === 'em_analise' || status === 'aprovado')
     case 'aprovar':
-      return status === 'em_analise' || status === 'reprovado'
+      return pode('documentos.analisar') && (status === 'em_analise' || status === 'reprovado')
 
     case 'upload':
-      if (documento?.possui_dados_crlv && documento.id) return true
-      return !status || status === 'reprovado' || status === 'em_analise'
+      if (documento?.id) return true
+      return (
+        pode('documentos.analisar') &&
+        (!status || status === 'reprovado' || status === 'em_analise')
+      )
 
     default:
       return false
