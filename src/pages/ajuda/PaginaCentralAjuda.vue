@@ -30,7 +30,8 @@
           <q-card-section class="q-pa-md">
             <div class="row items-center justify-between q-mb-sm">
               <span class="text-subtitle1 text-weight-medium">Atendimentos</span
-              ><q-badge color="blue-1" text-color="primary">{{ total }} tickets</q-badge
+              ><q-badge color="blue-1" text-color="primary"
+                >{{ total }} {{ total === 1 ? 'ticket' : 'tickets' }}</q-badge
               ><q-btn
                 flat
                 round

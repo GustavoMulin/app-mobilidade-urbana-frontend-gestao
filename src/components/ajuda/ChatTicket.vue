@@ -206,7 +206,7 @@
           />
         </q-form>
         <div class="row justify-between text-caption text-grey-6 q-mt-xs">
-          <span>Ctrl + Enter para enviar</span
+          <span :class="{ invisible: $q.screen.lt.sm }">Ctrl + Enter para enviar</span
           ><span>{{
             conectadoChat && autenticadoCanal ? 'Em tempo real' : 'Atualização periódica'
           }}</span>
