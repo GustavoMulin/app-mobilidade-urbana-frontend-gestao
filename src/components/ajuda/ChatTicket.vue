@@ -31,7 +31,7 @@
           >
         </div>
         <div v-if="ticket.corrida" class="text-caption q-mt-xs">
-          Corrida {{ ticket.corrida.codigo_corrida || ticket.corrida.id }} ·
+          Código da corrida: {{ ticket.corrida.codigo_corrida || ticket.corrida.id }} ·
           {{ ticket.corrida.status }}
         </div>
         <div class="row items-center justify-between q-mt-md q-gutter-sm">
@@ -98,6 +98,7 @@
         <q-tab name="mensagens" label="Mensagens" no-caps />
         <q-tab v-if="global" name="transferencias" label="Histórico de transferências" no-caps />
         <q-tab name="cliente" label="Dados do cliente" no-caps />
+        <q-tab name="corrida" label="Histórico da corrida" no-caps />
       </q-tabs>
       <q-separator />
       <div
@@ -145,6 +146,13 @@
       <div v-if="aba === 'transferencias' && global" class="col conteudo-aba">
         <HistoricoTransferencias :ticket-id="ticket.id" :atualizacao="revisaoTransferencias" />
       </div>
+      <HistoricoChatCorrida
+        v-if="aba === 'corrida'"
+        :key="ticket.id"
+        :ticket-id="ticket.id"
+        :corrida-id="ticket.corrida?.id || null"
+        @acesso-perdido="$emit('acesso-perdido')"
+      />
       <q-card-section v-if="aba === 'cliente'" class="col conteudo-aba q-gutter-md">
         <div>
           <div class="text-caption text-grey-7">Solicitante</div>
@@ -159,7 +167,7 @@
           <div>{{ ticket.solicitante_tipo === 'motorista' ? 'Motorista' : 'Passageiro' }}</div>
         </div>
         <div v-if="ticket.corrida">
-          <div class="text-caption text-grey-7">Corrida</div>
+          <div class="text-caption text-grey-7">Código da corrida</div>
           <div>{{ ticket.corrida.codigo_corrida || ticket.corrida.id }}</div>
         </div>
         <div>
@@ -295,6 +303,7 @@ import {
 import TransferirTicket from 'src/components/ajuda/TransferirTicket.vue'
 import HistoricoTransferencias from 'src/components/ajuda/HistoricoTransferencias.vue'
 import ImagemMensagem from 'src/components/ajuda/ImagemMensagem.vue'
+import HistoricoChatCorrida from 'src/components/ajuda/HistoricoChatCorrida.vue'
 
 const props = defineProps({ ticketId: { type: Number, default: null } })
 const emit = defineEmits([

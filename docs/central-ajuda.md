@@ -1,46 +1,68 @@
 # Central de ajuda: tickets e chat
 
-A gestão agora atende em `/central-ajuda`, com a identidade visual do aplicativo: cartões claros, azul principal e conversa ao lado da fila de tickets. Atendimento/suporte, Gestão e Admin acessam o módulo pela permissão `ajuda.gerenciar`.
+A gestão atende em `/central-ajuda`, com a identidade visual do aplicativo: cartões claros, azul principal e conversa ao lado da fila de tickets. Atendimento, Suporte técnico, Gestão e Admin acessam o módulo pela permissão `ajuda.gerenciar`, respeitando a visibilidade de cada perfil.
 
 ## Modelo de dados
 
 Mantivemos `chamados_ajuda`, que já representava os pedidos de ajuda do app. A migration `2026_10_14_130000_adiciona_chat_aos_chamados_ajuda.php` estende essa tabela e transforma a descrição de cada chamado antigo na primeira mensagem, conservando ID, autor e data. Não é necessário recriar o banco.
 
-| Tabela              | Campos principais                                                                                                                                           | Relações e índices                                                                                                                    |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `chamados_ajuda`    | `id` bigint, `motivo` varchar(80), `descricao` text, `solicitante_tipo` varchar(20), `status` varchar(20), datas de última mensagem, resolução e fechamento | Solicitante → `users`; corrida opcional → `corridas`; responsável opcional → `gestores`; índices por status/data e responsável/status |
-| `chamado_mensagens` | `id` bigint, `autor_tipo` varchar(20), `autor_nome` varchar(255), `conteudo` text, `client_message_id` UUID opcional, timestamps                            | Ticket com exclusão em cascata; usuário/gestor opcionais com `nullOnDelete`; índice `(chamado_id,id)`; UUID único por ticket          |
+| Tabela                    | Campos principais                                                                                                                                           | Relações e índices                                                                                                                    |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `chamados_ajuda`          | `id` bigint, `motivo` varchar(80), `descricao` text, `solicitante_tipo` varchar(20), `status` varchar(20), datas de última mensagem, resolução e fechamento | Solicitante → `users`; corrida opcional → `corridas`; responsável opcional → `gestores`; índices por status/data e responsável/status |
+| `chamado_mensagens`       | `id` bigint, `autor_tipo` varchar(20), `autor_nome` varchar(255), `conteudo` text, `client_message_id` UUID opcional, timestamps                            | Ticket com exclusão em cascata; usuário/gestor opcionais com `nullOnDelete`; índice `(chamado_id,id)`; UUID único por ticket          |
+| `ticket_transfers`        | Ticket, operador que transferiu, responsável anterior/destinatário, nomes da época, tipo, observação e data                                                 | IDs de operadores referenciam `gestores`; auditoria preserva os nomes                                                                 |
+| `ticket_leituras`         | Ticket, gestor e ID da última mensagem lida                                                                                                                 | Leitura individual por operador; cursor não retrocede                                                                                 |
+| `chamado_mensagem_anexos` | Mensagem, disco/caminho privado, nome, MIME, tamanho, dimensões e hash                                                                                      | Metadados das imagens do atendimento; arquivo servido pela API autenticada                                                            |
+| `corrida_mensagens`       | Corrida, usuário, perfil/nome do autor, texto, UUID e datas                                                                                                 | Conversa motorista/passageiro; UUID único por corrida                                                                                 |
 
-As situações são definidas no enum PHP `StatusTicket` e validadas na API: `open`, `in_progress`, `pending`, `resolved`, `closed`. A coluna é string para permitir evolução sem alterações de um enum nativo do MySQL.
+Migrations complementares do módulo, em ordem:
 
-O solicitante é Passageiro ou Motorista. A mesma conta pode ter os dois perfis, mas cada ticket registra qual perfil originou o atendimento. Uma corrida só pode ser vinculada quando pertence ao perfil indicado. O outro participante da corrida não recebe acesso à conversa.
+- `2026_10_15_140000_create_ticket_transfers_table.php`: auditoria de transferências.
+- `2026_10_15_160000_adiciona_fila_de_atendimento_aos_tickets.php`: posição e entrada na fila.
+- `2026_10_15_170000_identifica_mensagem_de_fila_dos_tickets.php`: identifica o aviso de sistema que é atualizado no chat.
+- `2026_10_15_180000_create_ticket_leituras_table.php`: leitura individual por operador.
+- `2026_10_15_190000_create_chamado_mensagem_anexos_table.php`: imagens no atendimento.
+- `2026_10_15_200000_create_corrida_mensagens_table.php`: conversa motorista/passageiro.
+
+Os detalhes financeiros e o mapa usam as tabelas existentes `corridas`, `corrida_financeiros`, `corrida_destinos`, `produtos_corridas` e `veiculos`; essa parte não acrescenta migration.
+
+As situações são definidas no enum PHP `StatusTicket` e validadas na API: `open` (aberto), `waiting` (aguardando atendimento), `in_progress` (em atendimento), `pending` (aguardando resposta), `resolved` (resolvido) e `closed` (fechado). A coluna é string para permitir evolução sem alterações de um enum nativo do MySQL.
+
+O solicitante é Passageiro ou Motorista. A mesma conta pode ter os dois perfis, mas cada ticket registra qual perfil originou o atendimento. Uma corrida só pode ser vinculada quando pertence ao perfil indicado. O chat de atendimento pertence ao solicitante do ticket. A conversa entre motorista e passageiro pertence à corrida e tem acesso próprio, descrito adiante.
 
 O Sistema registra mudanças de status e responsável. Não é uma conta que precisa existir em `users`. Gestores continuam em sua tabela e guard atuais; não acrescentamos credenciais à tabela de usuários.
 
 ## Regras do atendimento
 
-- Assumir um ticket usa transação e bloqueio da linha. Dois operadores não podem assumir o mesmo ticket simultaneamente.
-- A primeira resposta do suporte assume automaticamente um ticket sem responsável.
-- Um operador consulta tickets de colegas, mas só o responsável responde ou altera o status. Admin pode intervir; a ação fica identificada no histórico.
-- `pending` aguarda resposta do solicitante. Sua resposta retoma o atendimento. Um ticket resolvido também pode ser retomado pelo solicitante.
+- Novos tickets entram sem responsável, em `open`. Atendimento vê essa entrada e os próprios tickets; Suporte técnico vê apenas os designados para ele. Gestão/Admin têm visão global.
+- Designar ou transferir coloca o ticket em `waiting`. O botão **Iniciar o atendimento** chama a rota `/assumir`; o início é manual e usa transação com bloqueio da linha. É permitido manter mais de um ticket em atendimento por operador.
+- Só o responsável envia respostas. Gestão/Admin podem assumir um atendimento de outro operador antes de responder ou transferi-lo; a ação fica registrada no histórico.
+- Transferências atualizam o responsável, a auditoria em `ticket_transfers` e as mensagens de sistema na mesma transação. A aba Histórico de transferências é exclusiva de Gestão/Admin.
+- Resolver um ticket retira-o da fila de Atendimento/Suporte técnico e do filtro `meus`. A listagem global de Gestão/Admin conserva o histórico. Resolver não inicia o próximo atendimento automaticamente.
+- O aviso de fila é atualizado na mesma mensagem de sistema. Ao iniciar, o texto passa para “Chegou sua vez! Seu atendimento foi iniciado.” A interface não exibe timer nem o antigo banner de espera.
+- `pending` aguarda resposta do solicitante. Sua resposta ou a retomada de um ticket resolvido devolve o atendimento à espera quando existe responsável; sem responsável, ele volta a `open`.
 - O suporte reabre tickets resolvidos antes de responder. Para fechar é necessário resolver primeiro. Tickets fechados bloqueiam mensagens até serem reabertos pelo suporte.
 - Cada tentativa de envio mantém um UUID. Repetir a mesma requisição devolve a mensagem já salva; alterar conteúdo ou autor com o mesmo UUID retorna 409.
 - O servidor determina a identidade do autor. Campos de autor enviados pelo cliente são recusados.
+
+A lista mostra um badge com as mensagens do solicitante ainda não lidas por aquele operador. A leitura é registrada ao visualizar Mensagens com a página em foco; consultar Histórico da corrida não marca o chat de atendimento como lido. No cabeçalho, a identificação da conta substitui o botão Novo ticket para facilitar os testes.
 
 ## Fluxo e tempo real
 
 1. O frontend envia a mensagem por HTTP com JWT, texto e UUID.
 2. `TicketsController` valida acesso e dados; `TicketsAjudaService` bloqueia o ticket, salva a mensagem e atualiza o contexto em transação.
 3. Após o commit, `TicketMensagemEnviada` entra na fila `broadcasts` e o worker publica pelo Reverb.
-4. Echo recebe `.ticket.mensagem` no canal privado e busca as mensagens novas. O frontend deduplica pelo ID, inclusive quando a mesma mensagem chega pela resposta HTTP e pelo evento.
+4. O solicitante recebe `.ticket.mensagem` com a mensagem no canal privado do cliente. A gestão recebe avisos `.ticket.atualizado` e `.ticket.transferido`, sem o texto da conversa, e consulta novamente a API para revalidar seu acesso. O frontend deduplica pelo ID.
 
 Os eventos implementam `ShouldBroadcast` e `ShouldDispatchAfterCommit`: o chat só anuncia mensagens persistidas. Isso segue a [documentação de broadcasting do Laravel 13](https://laravel.com/docs/13.x/broadcasting).
 
-| Canal privado               | Autorização                                   | Conteúdo                                            |
-| --------------------------- | --------------------------------------------- | --------------------------------------------------- |
-| `ajuda.ticket.{id}.cliente` | Guard `jwt`, usuário dono do ticket           | Mensagens e alterações do seu ticket                |
-| `ajuda.ticket.{id}.suporte` | Guard `gestores`, permissão `ajuda.gerenciar` | Mensagens e alterações do ticket                    |
-| `ajuda.suporte`             | Guard `gestores`, mesma permissão             | Apenas ID de ticket alterado, para atualizar a fila |
+| Canal privado               | Autorização                                     | Conteúdo                                                        |
+| --------------------------- | ----------------------------------------------- | --------------------------------------------------------------- |
+| `ajuda.ticket.{id}.cliente` | Guard `jwt`, usuário dono do ticket             | Mensagens e alterações do seu ticket                            |
+| `ajuda.ticket.{id}.suporte` | Guard `gestores`, operador com acesso ao ticket | Avisos de atualização/transferência, sem conteúdo das mensagens |
+| `ajuda.suporte`             | Guard `gestores`, Gestão/Admin                  | Avisos para atualizar a listagem global                         |
+| `ajuda.entrada`             | Guard `gestores`, Atendimento e Gestão/Admin    | Avisos da fila sem responsável                                  |
+| `ajuda.operador.{id}`       | Guard `gestores`, somente o próprio operador    | Avisos da fila pessoal e `.ticket.lido`                         |
 
 O navegador da gestão autoriza em `/api/gestao/broadcasting/auth`; os aplicativos de passageiros/motoristas usam `/api/broadcasting/auth`. Os guards são separados, evitando colisões entre IDs de `users` e `gestores`.
 
@@ -48,22 +70,84 @@ No frontend, `src/services/echo.js` usa o cliente Axios do app para autorizaçã
 
 `ChatTicket.vue` usa [QChatMessage do Quasar](https://quasar.dev/vue-components/chat/) com texto puro; HTML recebido em mensagens nunca é executado.
 
-## API
+## Rotas do backend e contratos de integração
 
-Rotas da gestão, sob `/api/gestao`:
+Os caminhos abaixo já incluem `/api`. Em desenvolvimento, acrescente `http://localhost` antes da rota. Envie `Authorization: Bearer <token>` e `Accept: application/json`; nos POSTs/PATCHs com JSON, também `Content-Type: application/json`. Para anexos, use multipart com boundary definido pelo cliente HTTP.
 
-| Método | Rota                            | Uso                                                                                                      |
-| ------ | ------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| GET    | `/ajuda/tickets`                | Fila paginada; filtros `status`, `solicitante_tipo`, `search`, `page`, `per_page`                        |
-| POST   | `/ajuda/tickets`                | Abrir em nome de usuário com `user_id`, `solicitante_tipo`, `motivo`, `descricao`, `corrida_id` opcional |
-| GET    | `/ajuda/solicitantes`           | Buscar passageiros/motoristas por nome/CPF                                                               |
-| GET    | `/ajuda/tickets/{id}`           | Contexto, solicitante, corrida e responsável                                                             |
-| GET    | `/ajuda/tickets/{id}/mensagens` | Últimas 50; `before_id` para anteriores, `after_id` para novas; `limit` até 100                          |
-| POST   | `/ajuda/tickets/{id}/mensagens` | Enviar `{conteudo, client_message_id}`                                                                   |
-| POST   | `/ajuda/tickets/{id}/assumir`   | Assumir atendimento                                                                                      |
-| PATCH  | `/ajuda/tickets/{id}/status`    | Alterar `{status}`                                                                                       |
+Use JWT de `Gestor` nas rotas `/api/gestao/...` e JWT de `User` nas rotas dos aplicativos. A gestão continua usando `POST /api/gestao/auth/login` com `{email, password}` para autenticar. `{ticket}` é o ID numérico do atendimento; `{corrida}` é o ID numérico da corrida. Nas tabelas abaixo, `?` indica campo opcional, não faz parte do nome enviado no JSON.
 
-Os aplicativos usam `/api/ajuda/tickets` para listar/criar e as mesmas rotas de detalhes/mensagens, com acesso restrito aos tickets próprios. As rotas antigas `/api/ajuda/chamados` continuam retornando nomes de status em português, para compatibilidade.
+### Tickets na gestão
+
+| Método | Rota completa                                                            | O que faz / dados enviados                                                                                                |
+| ------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/gestao/ajuda/tickets`                                              | Lista a fila paginada conforme o perfil. Filtros descritos abaixo.                                                        |
+| POST   | `/api/gestao/ajuda/tickets`                                              | Abre para um solicitante: `{user_id, solicitante_tipo, motivo, descricao, corrida_id?}`. `user_id` pertence a `users`.    |
+| GET    | `/api/gestao/ajuda/tickets/{ticket}`                                     | Retorna protocolo, solicitante, responsável, status, corrida vinculada, leitura e dados de fila.                          |
+| GET    | `/api/gestao/ajuda/solicitantes`                                         | Busca usuários por `search` (nome/CPF) e `page`; retorna os perfis disponíveis.                                           |
+| GET    | `/api/gestao/ajuda/operadores`                                           | Busca responsáveis para designar/transferir. Aceita `search`, `page`, `exclude_user_id`.                                  |
+| POST   | `/api/gestao/ajuda/tickets/{ticket}/assumir`                             | Inicia o atendimento ou permite assunção por Gestão/Admin. Não exige corpo.                                               |
+| POST   | `/api/gestao/ajuda/tickets/{ticket}/transfer`                            | Designa/transfere: `{to_user_id, note?}`. `to_user_id` é o ID de `gestores`; observação opcional de até 1.000 caracteres. |
+| GET    | `/api/gestao/ajuda/tickets/{ticket}/transferencias`                      | Auditoria paginada, da mais recente para a mais antiga; aceita `page`. Exclusivo de Gestão/Admin.                         |
+| PATCH  | `/api/gestao/ajuda/tickets/{ticket}/status`                              | Altera `{status}`. `waiting` é gerenciado pela fila, não por alteração manual.                                            |
+| GET    | `/api/gestao/ajuda/tickets/{ticket}/mensagens`                           | Histórico do chat de atendimento, com cursores.                                                                           |
+| POST   | `/api/gestao/ajuda/tickets/{ticket}/mensagens`                           | Envia texto/imagens como responsável; requer atendimento iniciado. Contrato de mensagens abaixo.                          |
+| GET    | `/api/gestao/ajuda/tickets/{ticket}/mensagens/{mensagem}/anexos/{anexo}` | Retorna o arquivo binário privado, após validar o acesso e o vínculo dos IDs.                                             |
+| POST   | `/api/gestao/ajuda/tickets/{ticket}/leitura`                             | Marca leitura do operador: `{ultima_mensagem_id}`. O cursor só avança e a mensagem deve pertencer ao ticket.              |
+| GET    | `/api/gestao/ajuda/tickets/{ticket}/corrida/mensagens`                   | Retorna a conversa motorista/passageiro e os detalhes da corrida para a aba Histórico da corrida. Somente consulta.       |
+
+Filtros da lista: `fila=todos|entrada|meus`, `status`, `solicitante_tipo=passageiro|motorista`, `search` (nome, CPF, motivo, ID ou protocolo), `page` e `per_page` (1 a 50, padrão 20). `todos` respeita o acesso do perfil; não concede visão global ao Suporte técnico.
+
+### Tickets nos aplicativos de passageiro/motorista
+
+| Método | Rota completa                                                     | O que faz / dados enviados                                                                                            |
+| ------ | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/ajuda/tickets`                                              | Lista somente tickets do usuário autenticado; aceita os filtros de status, perfil, busca e paginação.                 |
+| POST   | `/api/ajuda/tickets`                                              | Abre um ticket: `{solicitante_tipo?, motivo, descricao, corrida_id?}`. O solicitante vem do JWT; não envie `user_id`. |
+| GET    | `/api/ajuda/tickets/{ticket}`                                     | Consulta um ticket próprio, incluindo o código da corrida vinculada.                                                  |
+| GET    | `/api/ajuda/tickets/{ticket}/mensagens`                           | Consulta as mensagens do atendimento com cursores.                                                                    |
+| POST   | `/api/ajuda/tickets/{ticket}/mensagens`                           | Envia texto/imagens para o atendimento próprio.                                                                       |
+| GET    | `/api/ajuda/tickets/{ticket}/mensagens/{mensagem}/anexos/{anexo}` | Baixa/visualiza um anexo privado do próprio ticket.                                                                   |
+
+Motivos aceitos: `corrida_com_problema`, `tarifa_incorreta`, `objeto_esquecido`, `motorista_ou_passageiro`, `outro`. A descrição inicial deve ter de 10 a 1.000 caracteres. `solicitante_tipo` aceita `passageiro` ou `motorista`; informe o perfil explicitamente quando a conta tiver ambos.
+
+### Mensagens, retorno e erros
+
+- Texto no chat de atendimento: `{conteudo, client_message_id}`, com até 4.000 caracteres e UUID obrigatório. Para imagens, utilize `imagens[]` em multipart, com o mesmo UUID e texto opcional; os limites estão na seção Imagens na conversa.
+- Histórico de mensagens: sem cursor, últimas 50; `before_id` para anteriores ou `after_id` para novas, nunca ambos. `limit` vai de 1 a 100. O retorno contém `data`, `has_more`, `next_before_id` e `next_after_id`. No chat de atendimento, `atualizadas` recupera edições do aviso de fila sem mudar seu ID.
+- Criação e envio retornam HTTP 201 com o registro em `data`. Consulta de ticket retorna o registro em `data`; a lista de tickets retorna `data`, `links` e `meta` de paginação. GET de anexo retorna binário, não JSON.
+- Erros usuais: 401 (autenticação), 403 (permissão), 404 (registro/vínculo sem acesso), 409 (estado incompatível ou UUID reutilizado com conteúdo diferente), 422 (validação) e 429 (limite de requisições).
+
+### Conversa da corrida, autorização do WebSocket e compatibilidade
+
+| Método | Rota completa                       | O que faz / dados enviados                                                                      |
+| ------ | ----------------------------------- | ----------------------------------------------------------------------------------------------- |
+| GET    | `/api/corridas/{corrida}/mensagens` | Retorna a conversa do motorista e passageiro vinculados, com cursores; não é o chat de suporte. |
+| POST   | `/api/corridas/{corrida}/mensagens` | Envia `{conteudo, client_message_id}` como participante, nas situações permitidas da corrida.   |
+| POST   | `/api/broadcasting/auth`            | Autoriza canal privado com JWT de `User`: `{socket_id, channel_name}`.                          |
+| POST   | `/api/gestao/broadcasting/auth`     | Autoriza canal privado com JWT de `Gestor`: `{socket_id, channel_name}`.                        |
+| GET    | `/api/ajuda/chamados`               | Compatibilidade: últimos 50 chamados próprios com nomes antigos de status em português.         |
+| POST   | `/api/ajuda/chamados`               | Compatibilidade de criação: `{motivo, descricao, corrida_id?, solicitante_tipo?}`.              |
+
+As regras do chat da corrida, canais e campos extras para a gestão estão detalhadas na seção Conversa entre motorista e passageiro. Arquivos que registram essas rotas no backend: `routes/api/gestao.php`, `routes/api/ajuda.php`, `routes/api/corrida.php` e `routes/api.php`; a autorização dos canais fica em `routes/channels.php`.
+
+### Abrir ticket com corrida vinculada
+
+Para abrir um ticket vinculado a uma corrida, envie `POST /api/ajuda/tickets` com o JWT do solicitante e este JSON:
+
+```json
+{
+  "solicitante_tipo": "passageiro",
+  "motivo": "tarifa_incorreta",
+  "descricao": "A corrida mostrava R$ 20, mas fui cobrado em R$ 30.",
+  "corrida_id": 1
+}
+```
+
+`corrida_id` é o ID da tabela `corridas`, e não o código nem o ID do ticket. A corrida deve pertencer ao solicitante no perfil informado; caso contrário, a API retorna 404. O vínculo continua opcional para assuntos sem corrida.
+
+O código exibido vem de `corridas.codigo_corrida`. Por exemplo, `"corrida_id": 1` identifica a corrida `TESTE-CORRIDA-0001` criada pelo seeder de testes. Corridas fictícias usam o mesmo relacionamento das demais corridas. Criar corridas no banco não vincula tickets antigos automaticamente; tickets com `corrida_id: null` não exibem um código.
+
+Na criação, listagem e consulta do ticket, `data.corrida` contém `id`, `codigo_corrida` e `status` (na listagem, dentro de cada item de `data`). Sem vínculo, `corrida` retorna `null`. A gestão mostra o código no cabeçalho do ticket e em Dados do cliente. A aba **Histórico da corrida** exibe a conversa entre motorista e passageiro, somente para consulta.
 
 Exemplo para o aplicativo do solicitante:
 
@@ -109,11 +193,11 @@ REVERB_SCHEME="http"
 
 O segredo nunca deve ser colocado no frontend. Para testes por IP da rede, use o IP acessível pelos navegadores e inclua seus hosts em `REVERB_ALLOWED_ORIGINS`. Em produção, utilize HTTPS/WSS.
 
-No backend:
+No terminal do backend aberto no container:
 
 ```powershell
-docker compose exec -T laravel.test php artisan migrate
-docker compose exec -T laravel.test php artisan optimize:clear
+php artisan migrate
+php artisan optimize:clear
 ```
 
 O Supervisor inclui o processo Reverb e um worker dedicado `queue:work --queue=broadcasts`. Como seu arquivo é copiado na construção da imagem, reconstrua-a para manter o worker automático após reiniciar:
@@ -137,6 +221,73 @@ No frontend, `npm install` instala Echo/Pusher. Reinicie `npm run dev` depois de
 Testes locais ficam em `.local-tests` e não entram no commit. Cobrem isolamento de conversas, guards JWT distintos, concorrência de atendimento, autoria, UUID, status, paginação e compatibilidade das rotas antigas. O teste de Reverb utiliza servidor/credenciais temporários e somente o banco `testing`.
 
 Esta entrega contempla tickets, mensagens textuais e imagens, leitura por operador e gestão do atendimento. A interface do chat nos aplicativos de Passageiro/Motorista deve consumir os endpoints acima; este repositório contém a interface de gestão.
+
+## Conversa entre motorista e passageiro
+
+As mensagens dessa conversa pertencem à corrida, independentemente dos tickets abertos sobre ela. Elas ficam em `corrida_mensagens`, criada pela migration `2026_10_15_200000_create_corrida_mensagens_table.php`. A tabela guarda `corrida_id`, `user_id`, o perfil e nome do autor, texto, UUID da tentativa e datas. A exclusão da corrida remove suas mensagens; a exclusão física do usuário preserva o nome e o texto registrados.
+
+| Método | Rota                                                   | Quem pode usar                                          |
+| ------ | ------------------------------------------------------ | ------------------------------------------------------- |
+| GET    | `/api/corridas/{corrida}/mensagens`                    | Passageiro solicitante e motorista vinculados à corrida |
+| POST   | `/api/corridas/{corrida}/mensagens`                    | Os mesmos participantes, do aceite até o fim da corrida |
+| GET    | `/api/gestao/ajuda/tickets/{ticket}/corrida/mensagens` | Operador com acesso atual ao ticket vinculado           |
+
+O envio utiliza o JWT de `User`, com JSON:
+
+```json
+{
+  "conteudo": "Estou na entrada principal.",
+  "client_message_id": "fba0b272-5c7d-47f8-a383-4a54f8c242fa"
+}
+```
+
+Use um UUID novo para cada mensagem e repita o mesmo UUID e texto em novas tentativas da mesma mensagem. O servidor identifica o autor pelo token; não envie `user_id`, `autor_tipo` ou `autor_nome`. Esta conversa aceita texto com até 4.000 caracteres. Os anexos do chat de atendimento continuam na API de tickets.
+
+O POST exige corrida em `aceita`, `motorista_chegou` ou `em_andamento`, com motorista designado. Em `finalizada` ou `cancelada`, o histórico permanece disponível, mas novas mensagens retornam 409. Corridas aguardando pagamento, solicitadas ou em busca também não permitem envio. Repetir uma mensagem já salva com o mesmo UUID e texto continua devolvendo seu registro mesmo depois do encerramento.
+
+Os GETs retornam `data` (mensagens), `corrida` (código, status e nomes dos participantes), `pode_enviar`, `has_more`, `next_before_id` e `next_after_id`. Sem cursor, vêm as últimas 50 mensagens, em ordem cronológica. Use `before_id` para anteriores ou `after_id` para novas, com `limit` de até 100. A consulta da gestão sempre retorna `pode_enviar: false`; não existe rota de envio para gestores nessa conversa.
+
+O evento `.corrida.mensagem` é publicado após o commit nos canais privados `corrida.{id}.chat` (JWT dos participantes) e `corrida.{id}.chat.suporte` (JWT de operador autorizado). Seu payload contém apenas `corrida_id` e `mensagem_id`. Ao receber o aviso, o consumidor consulta a API com seu cursor e revalida o acesso. Assim, assinaturas antigas não recebem conteúdo após a troca de motorista ou transferência do ticket.
+
+Na gestão, a assinatura só existe enquanto a aba Histórico da corrida está aberta. A conversa atualiza sem F5 e sem consultas periódicas quando o canal está autorizado e conectado. Reconexão recupera o intervalo perdido; a consulta a cada 15 segundos só funciona como recuperação quando o tempo real está indisponível. Trocar de ticket ou de aba cancela as consultas antigas e encerra essa assinatura.
+
+Na mesma aba, os detalhes ficam à esquerda e a conversa à direita. Em telas estreitas, os painéis ficam um abaixo do outro. A consulta da gestão também retorna em `corrida` o produto, veículo, horários, duração em segundos, distância, situação do pagamento, financeiro e destinos ordenados com coordenadas. Esses dados extras não são enviados na consulta dos participantes. Campos ausentes aparecem como não informados; o histórico não altera valores nem cria cobranças.
+
+### Campos dos detalhes da corrida
+
+| Informação na interface          | Campo retornado pela consulta da gestão                                                                                 |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Código e situação da corrida     | `corrida.codigo_corrida`, `corrida.status`                                                                              |
+| Produto, veículo e participantes | `corrida.produto`, `corrida.veiculo`, `corrida.motorista.nome`, `corrida.passageiro.nome`                               |
+| Duração e distância              | `corrida.duracao_segundos`, `corrida.distancia_km`; duração calculada entre início e fim registrados                    |
+| Datas                            | `corrida.solicitada_em`, `corrida.iniciada_em`, `corrida.finalizada_em`                                                 |
+| Método e situação do pagamento   | `corrida.metodo_pagamento`, `corrida.status_pagamento`                                                                  |
+| Ganho do motorista               | `corrida.financeiro.valor_liquido_motorista`                                                                            |
+| Valor do passageiro e crédito    | `corrida.financeiro.valor_pago_passageiro`, `corrida.financeiro.credito_aplicado`                                       |
+| Valor bruto e adicionais         | `corrida.financeiro.valor_bruto`, `valor_dinamico_aplicado`, `taxa_espera`, `valor_ajuste_negociado`, `valor_descontos` |
+| Plataforma                       | `corrida.financeiro.taxa_plataforma_valor`, `taxa_plataforma_percentual`, `subsidiado_plataforma`                       |
+| Outras cobranças                 | `corrida.financeiro.taxa_cancelamento`, referente à própria corrida                                                     |
+| Trajeto e mapa                   | `corrida.destinos[]`: `tipo`, `ordem`, `endereco`, `nome_local`, `latitude`, `longitude`, `concluida_em`                |
+
+O título “Pago pelo passageiro” e a indicação “Dinheiro recebido” dependem do status `pago`; nos demais casos, a interface informa cobrança ou recebimento não confirmado. O complemento da plataforma vem de `subsidiado_plataforma`. A coluna `valor_repassado_plataforma` não é apresentada como dinheiro recebido pelo motorista. A composição exibe os valores gravados; o frontend não soma novamente os adicionais para recalcular o ganho.
+
+Componentes do frontend: `ChatTicket.vue` organiza as abas; `HistoricoChatCorrida.vue` divide os painéis; `DetalhesCorrida.vue` exibe o resumo; `MapaCorrida.vue` renderiza o mapa; `useHistoricoChatCorrida.js` controla consultas, paginação e assinatura. No backend, `ChatCorridaController::historicoTicket` revalida o acesso e acrescenta os campos de `DetalhesCorridaResource` ao retorno do chat.
+
+O mapa usa [Leaflet](https://leafletjs.com/reference.html) e o fundo do [OpenStreetMap](https://operations.osmfoundation.org/policies/tiles/), com atribuição visível. Mostra origem, paradas e destino. A linha tracejada apenas liga os pontos registrados; o banco atual não contém um percurso de GPS gravado. O mapa carrega no navegador e não faz chamadas de roteamento na consulta do histórico.
+
+Para criar o exemplo completo em desenvolvimento, sem apagar registros existentes:
+
+```shell
+php artisan db:seed --class=HistoricoCorridaDemonstracaoSeeder
+```
+
+O seeder exige as contas de `CadastroDesenvolvimentoSeeder`, cria a corrida `DEMO-HISTORICO-001`, três pontos de trajeto, valores financeiros, seis mensagens fictícias e um ticket vinculado. A saída informa o protocolo do ticket. Pode ser repetido sem duplicar os dados e não sobrescreve edições existentes.
+
+Na base local em que o exemplo foi criado, o resultado foi **ticket `AJ-000006`**, ligado à **corrida ID `31`, código `DEMO-HISTORICO-001`**. Para consultar, entre com Gestão/Admin, abra Central de ajuda, pesquise `AJ-000006` e selecione Histórico da corrida. Esses IDs podem mudar após recriar o banco; use o protocolo informado pelo seeder. O exemplo tem duração de **15m 56s**, distância de **5,6 km**, ganho do motorista de **R$ 16,20** e valor pago pelo passageiro de **R$ 15,23**.
+
+O catálogo de corridas fictícias anterior é separado: `php artisan db:seed --class=CorridasTesteSeeder` cria até 30 corridas (`TESTE-CORRIDA-0001` a `TESTE-CORRIDA-0030`), com 20 finalizadas, 10 canceladas, 84 pontos de trajeto e 30 financeiros. Reaproveita os produtos Normal, Negocia e Expresso e exige um passageiro, motorista vinculado a carro e Porto Velho cadastrados. Não cria tickets automaticamente nem sobrescreve as corridas de teste existentes. Ambos os seeders são exclusivos de `local`/`testing`.
+
+Nos aplicativos de motorista/passageiro, a interface de envio deve consumir as rotas acima e assinar `corrida.{id}.chat` com o JWT do participante. Este repositório implementa a tela de consulta da gestão; as interfaces desses aplicativos ficam nos respectivos projetos.
 
 ## Imagens na conversa
 
