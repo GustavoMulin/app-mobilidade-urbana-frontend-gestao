@@ -46,13 +46,7 @@
               outline
               dense
               color="primary"
-              :label="
-                aguardando && podeAtender
-                  ? 'Iniciar atendimento'
-                  : ticket.gestor_responsavel
-                    ? 'Assumir atendimento'
-                    : 'Assumir'
-              "
+              label="Iniciar o atendimento"
               :disable="aguardando && podeAtender && !ticket.fila?.pode_iniciar"
               :loading="operando"
               @click="acao('assumir')"
