@@ -46,7 +46,7 @@
                   <q-item-label class="text-bold"> {{ props.row.nome }}</q-item-label>
                   <q-item-label class="estilo-coluna">
                     <div>Código: {{ props.row.codigo }}</div>
-                    <div>Estagégia precificação: {{ props.row.estrategia_precificacao }}</div>
+                    <div>Estratégia de precificação: {{ props.row.estrategia_precificacao }}</div>
                   </q-item-label>
                 </q-item-section>
               </q-item>
