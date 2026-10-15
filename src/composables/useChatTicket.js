@@ -21,6 +21,7 @@ export function useChatTicket(
   const maisAntigas = ref(false)
   const erro = ref('')
   const texto = ref('')
+  const imagens = ref([])
   const operando = ref(false)
   const autenticadoCanal = ref(false)
   const acessoNegado = ref(false)
@@ -38,6 +39,37 @@ export function useChatTicket(
   let lidaAte = 0
   let lendo = false
   const paginaAtiva = ref(false)
+
+  function limparImagens() {
+    imagens.value.forEach((imagem) => URL.revokeObjectURL(imagem.url))
+    imagens.value = []
+  }
+
+  function adicionarImagens(arquivos) {
+    if (enviando.value) return
+    erro.value = ''
+    for (const arquivo of arquivos) {
+      if (imagens.value.length >= 3) {
+        erro.value = 'Envie no máximo 3 imagens por mensagem.'
+        break
+      }
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(arquivo.type)) {
+        erro.value = 'Selecione imagens JPG, PNG ou WebP.'
+        continue
+      }
+      if (arquivo.size > 5 * 1024 * 1024) {
+        erro.value = 'Cada imagem deve ter no máximo 5 MB.'
+        continue
+      }
+      imagens.value.push({ arquivo, url: URL.createObjectURL(arquivo) })
+    }
+  }
+
+  function removerImagem(indice) {
+    if (enviando.value) return
+    const [imagem] = imagens.value.splice(indice, 1)
+    if (imagem) URL.revokeObjectURL(imagem.url)
+  }
 
   function atualizarFoco() {
     paginaAtiva.value = document.visibilityState === 'visible' && document.hasFocus()
@@ -159,6 +191,7 @@ export function useChatTicket(
     autenticadoCanal.value = false
     lidaAte = 0
     lendo = false
+    limparImagens()
   }
 
   function negarAcesso() {
@@ -275,22 +308,42 @@ export function useChatTicket(
   }
 
   async function enviar() {
-    if (!texto.value.trim() || enviando.value || ticket.value?.status === 'waiting') return
+    if (
+      (!texto.value.trim() && !imagens.value.length) ||
+      enviando.value ||
+      ticket.value?.status === 'waiting'
+    )
+      return
     const epoch = version
     const id = ticketId.value
     const conteudo = texto.value.trim()
-    if (!pending || pending.conteudo !== conteudo) {
-      pending = { conteudo, client_message_id: identificadorMensagem() }
+    const arquivos = imagens.value.map((imagem) => imagem.arquivo)
+    if (
+      !pending ||
+      pending.conteudo !== conteudo ||
+      pending.imagens.length !== arquivos.length ||
+      pending.imagens.some((arquivo, indice) => arquivo !== arquivos[indice])
+    ) {
+      pending = { conteudo, client_message_id: identificadorMensagem(), imagens: arquivos }
     }
     enviando.value = true
     erro.value = ''
     try {
-      const { data } = await api.post(`/ajuda/tickets/${id}/mensagens`, pending, {
+      let payload = { conteudo: pending.conteudo, client_message_id: pending.client_message_id }
+      if (pending.imagens.length) {
+        payload = new FormData()
+        payload.append('conteudo', pending.conteudo)
+        payload.append('client_message_id', pending.client_message_id)
+        pending.imagens.forEach((arquivo) => payload.append('imagens[]', arquivo, arquivo.name))
+      }
+      const { data } = await api.post(`/ajuda/tickets/${id}/mensagens`, payload, {
         signal: controller.signal,
+        ...(pending.imagens.length ? { headers: { 'Content-Type': undefined } } : {}),
       })
       if (epoch !== version) return
       mesclar([data.data])
       texto.value = ''
+      limparImagens()
       pending = null
       await sincronizar()
       atualizado()
@@ -345,6 +398,9 @@ export function useChatTicket(
     maisAntigas,
     erro,
     texto,
+    imagens,
+    adicionarImagens,
+    removerImagem,
     operando,
     autenticadoCanal,
     abrir,

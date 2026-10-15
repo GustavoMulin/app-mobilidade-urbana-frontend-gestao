@@ -136,4 +136,33 @@ No frontend, `npm install` instala Echo/Pusher. Reinicie `npm run dev` depois de
 
 Testes locais ficam em `.local-tests` e não entram no commit. Cobrem isolamento de conversas, guards JWT distintos, concorrência de atendimento, autoria, UUID, status, paginação e compatibilidade das rotas antigas. O teste de Reverb utiliza servidor/credenciais temporários e somente o banco `testing`.
 
-Esta entrega contempla tickets, mensagens textuais e gestão do atendimento. Anexos, indicadores de leitura/digitação, SLA e notificações push podem ser acrescentados posteriormente. A interface do chat nos aplicativos de Passageiro/Motorista deve consumir os endpoints acima; este repositório contém a interface de gestão.
+Esta entrega contempla tickets, mensagens textuais e imagens, leitura por operador e gestão do atendimento. A interface do chat nos aplicativos de Passageiro/Motorista deve consumir os endpoints acima; este repositório contém a interface de gestão.
+
+## Imagens na conversa
+
+No chat, use o botão de imagem ou cole um print com `Ctrl + V`. É possível enviar apenas a imagem ou acrescentar texto. Clique na miniatura para ampliar e baixar. `Enter` envia a mensagem e `Shift + Enter` quebra a linha.
+
+- Até 3 imagens por mensagem, com até 5 MB cada, nos formatos JPG, PNG ou WebP.
+- A API também valida o conteúdo do arquivo, as dimensões (até 12.000 pixels por lado) e o limite de 40 megapixels.
+- A migration `2026_10_15_190000_create_chamado_mensagem_anexos_table.php` cria os metadados em `chamado_mensagem_anexos`. Os arquivos ficam no disco privado `ticket_anexos`, em `storage/app/private/ticket_anexos`; não precisam de `storage:link`.
+- O envio mantém o endpoint `POST /ajuda/tickets/{id}/mensagens`. Para imagens, utilize `multipart/form-data` com `client_message_id`, `conteudo` opcional e `imagens[]`. Deixe o cliente HTTP definir o boundary.
+- Repita o mesmo UUID, texto e arquivos em caso de falha para evitar duplicação. Alterar o conteúdo ou as imagens com um UUID já usado retorna 409.
+
+Exemplo para o aplicativo do solicitante (base `/api`):
+
+```js
+const formulario = new FormData()
+formulario.append('client_message_id', crypto.randomUUID())
+formulario.append('conteudo', 'Segue o print do problema.')
+formulario.append('imagens[]', arquivo)
+const { data } = await apiCliente.post(`/ajuda/tickets/${ticketId}/mensagens`, formulario)
+```
+
+As mensagens retornam `anexos`, contendo `id`, `nome`, `mime_type`, `tamanho`, `largura`, `altura` e `url`. A URL é relativa à base da API do perfil autenticado:
+
+| Método | Rota                                                                     | Autorização                                |
+| ------ | ------------------------------------------------------------------------ | ------------------------------------------ |
+| GET    | `/api/ajuda/tickets/{ticket}/mensagens/{mensagem}/anexos/{anexo}`        | JWT do solicitante dono do ticket          |
+| GET    | `/api/gestao/ajuda/tickets/{ticket}/mensagens/{mensagem}/anexos/{anexo}` | JWT do operador com acesso atual ao ticket |
+
+O GET retorna o arquivo binário. No navegador, busque com Axios autenticado e `responseType: 'blob'`, depois gere uma URL com `URL.createObjectURL`. Não coloque o JWT na URL. Um operador que perde acesso ao ticket também perde acesso aos seus anexos na API. A resposta e o evento de mensagem incluem os metadados dos anexos; o evento só é disparado após a persistência da mensagem e das imagens.
