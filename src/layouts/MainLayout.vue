@@ -179,6 +179,12 @@ export default {
             permissao: 'financeiro.consultar',
           },
           {
+            icon: 'payments',
+            text: 'Ganhos',
+            to: '/motoristas-ganhos',
+            permissao: 'financeiro.consultar',
+          },
+          {
             icon: 'groups_2',
             text: 'Passageiros',
             to: '/passageiros',
