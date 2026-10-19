@@ -195,11 +195,15 @@
                 {{ resposta.resumo.custos_pendentes }} operação(ões) com custos pendentes.
                 Estimativa recebida: {{ moedaSaldo(resposta.resumo.lucro_estimado_recebido) }}.
               </div>
-              <GraficoGanhos class="q-mt-md" :dados="resposta.grafico" />
-              <div class="text-caption text-grey-7">
-                Gráfico por data de recebimento. Comissões pendentes permanecem fora do resultado
-                realizado.
-              </div>
+              <GraficoLucrosPlataforma
+                v-if="$q.screen.lt.md"
+                class="q-mt-lg"
+                :dados="resposta.grafico"
+                :total="resposta.resumo.lucro_realizado"
+                :intervalo="resposta.periodo"
+                :diario="resposta.grafico_granularidade === 'hora'"
+                :demonstracao="demonstracao"
+              />
             </q-card-section>
             <q-separator />
             <div class="q-pa-md text-subtitle2">
@@ -293,12 +297,23 @@
             @click="limparSelecao"
           />
           <span class="text-subtitle1 text-weight-medium">{{
-            detalhe?.descricao || 'Demonstrativo da operação'
+            selecionado ? detalhe?.descricao || 'Demonstrativo da operação' : 'Evolução dos ganhos'
           }}</span>
+          <q-space />
+          <q-btn
+            v-if="selecionado && !$q.screen.lt.md"
+            flat
+            dense
+            no-caps
+            color="primary"
+            icon="bar_chart"
+            label="Ver gráfico"
+            @click="limparSelecao"
+          />
         </q-card-section>
         <q-separator />
         <div class="detail-scroll col">
-          <div v-if="carregandoDetalhe" class="q-pa-xl text-center">
+          <div v-if="carregandoDetalhe || (!selecionado && carregando)" class="q-pa-xl text-center">
             <q-spinner color="primary" size="32px" />
           </div>
           <q-banner v-else-if="erroDetalhe" class="bg-red-1 text-negative q-ma-md" role="alert"
@@ -312,9 +327,21 @@
             :operacao="detalhe"
             @atualizado="atualizar(false, true)"
           />
-          <div v-else class="estado-vazio text-grey-7">
-            <q-icon name="query_stats" size="48px" color="blue-2" />
-            <p>Selecione uma operação ao lado para ver a composição e a auditoria.</p>
+          <div v-else-if="resposta && !$q.screen.lt.md" class="q-pa-lg">
+            <GraficoLucrosPlataforma
+              :dados="resposta.grafico"
+              :total="resposta.resumo.lucro_realizado"
+              :intervalo="resposta.periodo"
+              :diario="resposta.grafico_granularidade === 'hora'"
+              :demonstracao="demonstracao"
+            />
+            <div class="text-caption text-grey-7 text-center q-mt-lg">
+              Selecione uma operação ao lado para consultar a composição e a auditoria.
+            </div>
+          </div>
+          <div v-else-if="!$q.screen.lt.md" class="estado-vazio text-grey-7">
+            <q-icon name="bar_chart" size="48px" color="blue-2" />
+            <p>{{ erro || 'Selecione um período válido para consultar o gráfico.' }}</p>
           </div>
         </div>
       </q-card>
@@ -331,7 +358,7 @@ import {
   caixaPlataforma,
   iconePlataforma,
 } from 'src/utils/lucrosPlataforma'
-import GraficoGanhos from 'src/components/financeiro/GraficoGanhos.vue'
+import GraficoLucrosPlataforma from 'src/components/financeiro/GraficoLucrosPlataforma.vue'
 import DetalheLucroPlataforma from 'src/components/financeiro/DetalheLucroPlataforma.vue'
 import RegistrarCustoPlataforma from 'src/components/financeiro/RegistrarCustoPlataforma.vue'
 
