@@ -15,6 +15,11 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       {
+        path: 'plataforma-ganhos',
+        component: () => import('src/pages/financeiro/PaginaGanhosPlataforma.vue'),
+        meta: { permissao: 'financeiro.consultar' },
+      },
+      {
         path: 'motoristas-ganhos',
         component: () => import('src/pages/financeiro/PaginaGanhosMotoristas.vue'),
         meta: { permissao: 'financeiro.consultar' },

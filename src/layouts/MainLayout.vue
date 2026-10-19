@@ -185,6 +185,12 @@ export default {
             permissao: 'financeiro.consultar',
           },
           {
+            icon: 'account_balance',
+            text: 'Ganhos da plataforma',
+            to: '/plataforma-ganhos',
+            permissao: 'financeiro.consultar',
+          },
+          {
             icon: 'groups_2',
             text: 'Passageiros',
             to: '/passageiros',
