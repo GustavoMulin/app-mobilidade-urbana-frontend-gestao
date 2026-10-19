@@ -115,6 +115,16 @@
               class="col-6"
             />
           </div>
+          <q-select
+            v-model="resultado"
+            :options="resultadosPlataforma"
+            emit-value
+            map-options
+            outlined
+            dense
+            label="Resultado"
+            class="q-mt-md"
+          />
           <q-toggle v-model="demonstracao" dense label="Mostrar demonstração" class="q-mt-md" />
           <div v-if="resposta" class="text-caption text-grey-7 text-center q-mt-sm">
             {{ dia(resposta.periodo.inicio) }} a {{ dia(resposta.periodo.fim) }}
@@ -143,7 +153,9 @@
               >
               <q-card flat bordered class="q-mb-sm"
                 ><q-card-section>
-                  <div class="text-caption text-grey-7">Lucro líquido realizado · consolidado</div>
+                  <div class="text-caption text-grey-7">
+                    {{ tituloResultadoPlataforma(resultado) }}
+                  </div>
                   <div
                     class="text-h4 text-weight-bold q-my-sm"
                     :class="
@@ -203,6 +215,7 @@
                 :intervalo="resposta.periodo"
                 :diario="resposta.grafico_granularidade === 'hora'"
                 :demonstracao="demonstracao"
+                :resultado="resultado"
               />
             </q-card-section>
             <q-separator />
@@ -334,6 +347,7 @@
               :intervalo="resposta.periodo"
               :diario="resposta.grafico_granularidade === 'hora'"
               :demonstracao="demonstracao"
+              :resultado="resultado"
             />
             <div class="text-caption text-grey-7 text-center q-mt-lg">
               Selecione uma operação ao lado para consultar a composição e a auditoria.
@@ -357,6 +371,8 @@ import {
   naturezaPlataforma,
   caixaPlataforma,
   iconePlataforma,
+  resultadosPlataforma,
+  tituloResultadoPlataforma,
 } from 'src/utils/lucrosPlataforma'
 import GraficoLucrosPlataforma from 'src/components/financeiro/GraficoLucrosPlataforma.vue'
 import DetalheLucroPlataforma from 'src/components/financeiro/DetalheLucroPlataforma.vue'
@@ -369,6 +385,7 @@ const {
   fim,
   servico,
   status,
+  resultado,
   demonstracao,
   pagina,
   resposta,

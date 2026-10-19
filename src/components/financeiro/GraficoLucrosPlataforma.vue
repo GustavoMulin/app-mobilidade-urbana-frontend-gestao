@@ -1,7 +1,7 @@
 <template>
   <section class="grafico-lucros" aria-label="Gráfico detalhado dos ganhos da plataforma">
     <div class="resumo-grafico">
-      <div class="text-caption text-grey-7">Lucro líquido realizado · consolidado</div>
+      <div class="text-caption text-grey-7">{{ tituloResultadoPlataforma(resultado) }}</div>
       <div
         class="total-grafico text-weight-bold"
         :class="Number(total) < 0 ? 'text-negative' : 'text-positive'"
@@ -14,6 +14,9 @@
         {{ diario ? 'Distribuição por hora do dia' : 'Distribuição por dia' }} ·
         {{ intervalo.timezone || 'America/Porto_Velho' }}
       </div>
+      <q-badge v-if="resultado !== 'todos'" outline color="primary" class="q-mt-sm">
+        {{ resultado === 'positivo' ? 'Somente ganhos positivos' : 'Somente saídas negativas' }}
+      </q-badge>
       <q-badge v-if="demonstracao" color="amber-1" text-color="brown-9" class="q-mt-sm">
         Inclui dados de demonstração
       </q-badge>
@@ -22,7 +25,9 @@
     <figure class="q-ma-none" aria-label="Distribuição do lucro realizado">
       <div class="cabecalho-barras">
         <div>
-          <div class="text-subtitle2">{{ diario ? 'Ganhos por hora' : 'Ganhos por dia' }}</div>
+          <div class="text-subtitle2">
+            {{ resultado === 'negativo' ? 'Saídas' : 'Ganhos' }} por {{ diario ? 'hora' : 'dia' }}
+          </div>
           <div class="text-caption text-grey-7">
             Valores em R$ · toque em uma barra para detalhar
           </div>
@@ -212,7 +217,14 @@
       Nenhuma operação recebida e consolidada neste período.
     </div>
     <p class="explicacao-grafico text-caption text-grey-7 q-mb-none">
-      Apuração pela data de recebimento. Inclui despesas conciliadas, que podem reduzir o resultado.
+      Apuração pela data de recebimento.
+      <template v-if="resultado === 'todos'"
+        >Inclui despesas conciliadas, que podem reduzir o resultado.</template
+      >
+      <template v-else
+        >Exibe somente operações com resultado {{ resultado }}, antes de somar os
+        intervalos.</template
+      >
       Comissões a receber e operações com custos pendentes ficam fora deste gráfico.
     </p>
   </section>
@@ -221,6 +233,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { moedaSaldo } from 'src/utils/saldoMotoristas'
+import { tituloResultadoPlataforma } from 'src/utils/lucrosPlataforma'
 
 const props = defineProps({
   dados: { type: Array, default: () => [] },
@@ -228,6 +241,7 @@ const props = defineProps({
   intervalo: { type: Object, required: true },
   diario: Boolean,
   demonstracao: Boolean,
+  resultado: { type: String, default: 'todos' },
 })
 const janela = ref(null)
 const larguraDisponivel = ref(600)

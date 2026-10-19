@@ -11,6 +11,7 @@ export function useLucrosPlataforma() {
   const fim = ref(dataLocal())
   const servico = ref('todos')
   const status = ref(null)
+  const resultado = ref('todos')
   const demonstracao = ref(false)
   const pagina = ref(1)
   const resposta = ref(null)
@@ -32,6 +33,7 @@ export function useLucrosPlataforma() {
       : {}),
     tipo_servico: servico.value,
     status_custos: status.value || undefined,
+    resultado: resultado.value,
     incluir_demonstracao: demonstracao.value ? 1 : 0,
     page: pagina.value,
   }))
@@ -111,7 +113,7 @@ export function useLucrosPlataforma() {
     } else d.setDate(d.getDate() + direcao * (periodo.value === 'semanal' ? 7 : 1))
     data.value = dataLocal(d)
   }
-  watch([periodo, data, inicio, fim, servico, status, demonstracao], () => {
+  watch([periodo, data, inicio, fim, servico, status, resultado, demonstracao], () => {
     if (pagina.value !== 1) pagina.value = 1
     else void atualizar()
   })
@@ -131,6 +133,7 @@ export function useLucrosPlataforma() {
     fim,
     servico,
     status,
+    resultado,
     demonstracao,
     pagina,
     resposta,

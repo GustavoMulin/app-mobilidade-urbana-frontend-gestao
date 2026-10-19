@@ -1,3 +1,14 @@
+export const resultadosPlataforma = [
+  { value: 'todos', label: 'Todos (ganhos e saídas)' },
+  { value: 'positivo', label: 'Ganhos (positivos)' },
+  { value: 'negativo', label: 'Saídas (negativos)' },
+]
+export const tituloResultadoPlataforma = (resultado) =>
+  ({
+    positivo: 'Ganhos realizados · consolidados',
+    negativo: 'Saídas realizadas · consolidadas',
+  })[resultado] || 'Lucro líquido realizado · consolidado'
+
 export const custosPlataforma = [
   { campo: 'custo_gateway', label: 'Taxa do gateway' },
   { campo: 'subsidio_aplicado', label: 'Subsídio / desconto do app' },
