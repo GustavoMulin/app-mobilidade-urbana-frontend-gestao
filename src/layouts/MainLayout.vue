@@ -171,6 +171,12 @@ export default {
             to: '/veiculos',
             permissao: 'veiculos.consultar',
           },
+          {
+            icon: 'fact_check',
+            text: 'Modelos de veículos',
+            to: '/modelos-veiculos',
+            permissao: 'veiculos.consultar',
+          },
           { icon: 'group', text: 'Motoristas', to: '/motoristas', permissao: 'usuarios.consultar' },
           {
             icon: 'account_balance_wallet',
