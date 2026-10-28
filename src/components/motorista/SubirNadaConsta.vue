@@ -207,6 +207,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { copyToClipboard, useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { extrairNadaConsta } from 'src/utils/extrairNadaConsta'
+import { baixarAnexoDocumento } from 'src/utils/baixarAnexoDocumento'
 import { URL_VALIDACAO_PF } from 'src/utils/nadaConsta'
 import AcoesAnaliseDocumento from 'src/components/motorista/AcoesAnaliseDocumento.vue'
 
@@ -325,11 +326,66 @@ function iniciar() {
   dados.value = Object.fromEntries(
     campos.map((c) => [c.name, props.documento?.informacoes_complementares?.[c.name] ?? '']),
   )
+  void lerAnexoDoMotorista()
 }
 function fechar() {
   cancelar()
   limparUrl()
   arquivo.value = null
+}
+function aplicarLeitura(leitura) {
+  let preenchidos = 0
+  for (const [name, value] of Object.entries(leitura.dados)) {
+    if (!campos.some((c) => c.name === name)) continue
+    dados.value[name] = value
+    preenchidos++
+  }
+  const reconhecidos = Object.keys(leitura.dados).length
+  resultado.value = {
+    reconhecidos,
+    invalido: !!leitura.conflitos?.length || !dadosCompletos.value,
+    mensagem: leitura.conflitos?.length
+      ? 'A leitura encontrou informações divergentes. Selecione um arquivo com uma única certidão legível.'
+      : !dadosCompletos.value
+        ? 'Não foi possível reconhecer todos os campos obrigatórios. Selecione o PDF original ou uma imagem mais legível.'
+        : preenchidos
+          ? `${preenchidos} campos preenchidos a partir ${leitura.usouOcr ? 'da leitura da imagem' : 'do PDF'}. Confira os dados antes de enviar.`
+          : 'Não foi possível reconhecer os campos. Selecione o PDF original ou uma imagem mais legível.',
+  }
+}
+// Documento enviado pelo motorista pelo app: lê o anexo e preenche os campos para a conferência.
+async function lerAnexoDoMotorista() {
+  const informacoes = props.documento?.informacoes_complementares
+  if (
+    !anexoSalvoAtivo.value ||
+    props.documento?.status !== 'em_analise' ||
+    Object.values(informacoes || {}).some((valor) => String(valor ?? '').trim())
+  )
+    return
+  const current = new AbortController()
+  controller = current
+  lendo.value = true
+  progresso.value = 'Lendo a certidão enviada pelo motorista…'
+  try {
+    const anexo = await baixarAnexoDocumento(props.documento, 'frente', current.signal)
+    const leitura = await extrairNadaConsta(anexo, current.signal, (message) => {
+      if (controller === current) progresso.value = message
+    })
+    if (controller === current && !current.signal.aborted) aplicarLeitura(leitura)
+  } catch {
+    if (controller === current && !current.signal.aborted)
+      resultado.value = {
+        reconhecidos: 0,
+        invalido: true,
+        mensagem:
+          'Não foi possível ler a certidão enviada. Confira a prévia e os dados do documento.',
+      }
+  } finally {
+    if (controller === current) {
+      controller = null
+      lendo.value = false
+    }
+  }
 }
 function removerAnexo() {
   if (lendo.value || ocupado.value) return
@@ -358,24 +414,7 @@ watch(arquivo, async (file) => {
       if (controller === current) progresso.value = message
     })
     if (controller !== current || current.signal.aborted) return
-    let preenchidos = 0
-    for (const [name, value] of Object.entries(leitura.dados)) {
-      if (!campos.some((c) => c.name === name)) continue
-      dados.value[name] = value
-      preenchidos++
-    }
-    const reconhecidos = Object.keys(leitura.dados).length
-    resultado.value = {
-      reconhecidos,
-      invalido: !!leitura.conflitos?.length || !dadosCompletos.value,
-      mensagem: leitura.conflitos?.length
-        ? 'A leitura encontrou informações divergentes. Selecione um arquivo com uma única certidão legível.'
-        : !dadosCompletos.value
-          ? 'Não foi possível reconhecer todos os campos obrigatórios. Selecione o PDF original ou uma imagem mais legível.'
-          : preenchidos
-            ? `${preenchidos} campos preenchidos a partir ${leitura.usouOcr ? 'da leitura da imagem' : 'do PDF'}. Confira os dados antes de enviar.`
-            : 'Não foi possível reconhecer os campos. Selecione o PDF original ou uma imagem mais legível.',
-    }
+    aplicarLeitura(leitura)
   } catch {
     if (controller === current && !current.signal.aborted)
       resultado.value = {

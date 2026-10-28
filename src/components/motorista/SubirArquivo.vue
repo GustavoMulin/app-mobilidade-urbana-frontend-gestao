@@ -333,6 +333,7 @@ import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { extrairCnhPdf } from 'src/utils/extrairCnhPdf'
 import { extrairCnhImagens } from 'src/utils/extrairCnhImagens'
+import { baixarAnexoDocumento } from 'src/utils/baixarAnexoDocumento'
 import AcoesAnaliseDocumento from 'src/components/motorista/AcoesAnaliseDocumento.vue'
 
 const props = defineProps({
@@ -552,7 +553,31 @@ function restaurarCamposExtraidos() {
   camposExtraidos.clear()
 }
 
-async function preencherDadosCnh(selectedFile, selectedVerso) {
+// Com o anexo enviado pelo motorista, só completa o que ainda está em branco.
+async function lerAnexoDoMotorista(version) {
+  if (!isCnh.value || !anexoSalvoAtivo.value || props.documento?.status !== 'em_analise') return
+  extraindo.value = true
+  progressoExtracao.value = 'Lendo a CNH enviada pelo motorista…'
+  try {
+    const frente = await baixarAnexoDocumento(props.documento)
+    const verso = props.documento.verso?.url
+      ? await baixarAnexoDocumento(props.documento, 'verso')
+      : null
+    if (version !== loadVersion) return
+    await preencherDadosCnh(frente, verso, true)
+  } catch {
+    if (version === loadVersion)
+      resultadoExtracao.value = {
+        preenchidos: 0,
+        message:
+          'Não foi possível ler o arquivo enviado pelo motorista. Confira a prévia e preencha os dados manualmente.',
+      }
+  } finally {
+    if (version === loadVersion) extraindo.value = false
+  }
+}
+
+async function preencherDadosCnh(selectedFile, selectedVerso, somenteVazios = false) {
   cancelarExtracao()
   const controller = new AbortController()
   extracaoController = controller
@@ -579,6 +604,7 @@ async function preencherDadosCnh(selectedFile, selectedVerso) {
     let preenchidos = 0
     for (const [name, value] of Object.entries(dados)) {
       if (camposEditados.has(name) || cnh.value[name] !== anteriores[name]) continue
+      if (somenteVazios && cnh.value[name] !== '' && cnh.value[name] != null) continue
       camposExtraidos.set(name, { anterior: anteriores[name], extraido: value })
       cnh.value[name] = value
       preenchidos++
@@ -629,6 +655,8 @@ async function loadMotorista() {
     }
     const ear = Object.hasOwn(informacoes, 'ear') ? informacoes.ear : data.ear
     cnh.value.ear = ear == null ? null : !!Number(ear)
+    carregando.value = false
+    await lerAnexoDoMotorista(version)
   } catch {
     if (version === loadVersion) erroCarregamento.value = true
   } finally {
