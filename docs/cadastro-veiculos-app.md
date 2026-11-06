@@ -6,7 +6,13 @@ lista **Outros veículos** permanece abaixo para troca e exclui o selecionado;
 ao trocar, o anterior volta à lista. As categorias começam recolhidas e são
 expandidas ao tocar no título. O botão **Adicionar veículo** fica no rodapé,
 sem conteúdo promocional. O destaque muda somente após confirmação da troca
-pelo servidor. Como ainda não há foto própria no cadastro, a imagem é ilustrativa.
+pelo servidor. Como ainda não há foto própria no cadastro, a imagem é ilustrativa:
+uma imagem de carro e um desenho de moto, pintados com a cor cadastrada, tanto no
+destaque quanto nos cartões de **Outros veículos**. O carro usa duas camadas de
+mesmo tamanho: `carro-pintura.png` é a máscara da carroceria, que recebe a cor, e
+`carro-detalhes.png` traz por cima as sombras, os reflexos, os vidros e as rodas. A
+cor aceita as cores do CRLV e o masculino digitado no cadastro (`PRETA`, `Preto`,
+`Cinza escuro`), e cor desconhecida, `FANTASIA` ou vazia aparece em prata.
 As categorias usam `ProdutosCorrida::atendidosPor`, como no despacho, sem
 inventar modalidades ou liberar categorias especiais pendentes.
 
@@ -68,6 +74,12 @@ divergência impede a aprovação, mesmo que o campo editável tenha sido altera
 A reprovação permanece vinculada ao documento enviado. Um novo envio conserva
 o histórico anterior. Cadastro de veículo já existente deve seguir o fluxo de
 compartilhamento/renovação, sem substituir o CRLV atual por essa solicitação.
+
+Se o CRLV aprovado for de um veículo que já está em **outro** motorista, e placa,
+Renavam e chassi baterem com o mesmo veículo, o motorista é vinculado a ele (até
+três por veículo), sem criar outro cadastro nem alterar os dados. Dados que batem
+só em parte, ou de um veículo que já é do próprio motorista, continuam recusados.
+O CRLV é do veículo: reprovar depois esse envio afeta todos os motoristas dele.
 
 ## Backend compartilhado
 
