@@ -1,8 +1,8 @@
 export const URL_VALIDACAO_PF = 'https://servicos.pf.gov.br/epol-sinic-publico/validar-cac/'
 
-const normalizar = (texto) => texto.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase()
+export const normalizar = (texto) => texto.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase()
 
-function dataIso(value) {
+export function dataIso(value) {
   const match = value?.match(/\b(\d{2})[./-](\d{2})[./-](\d{4})\b/)
   if (!match) return
   const iso = `${match[3]}-${match[2]}-${match[1]}`
@@ -19,7 +19,7 @@ export function calcularValidadeCertidao(emissao, dias = 90) {
   return date.toISOString().slice(0, 10)
 }
 
-function linhasDaPagina(items) {
+export function linhasDaPagina(items) {
   const linhas = []
   for (const item of [...items]
     .filter((i) => i.text?.trim())

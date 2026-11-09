@@ -3,7 +3,14 @@ import { extrairCamposNadaConsta } from './nadaConsta.js'
 import { criarPreparadorCnh } from './prepararCnhImagem.js'
 import { aguardarLeitura } from './ocrCrlv.js'
 
-export async function extrairNadaConsta(file, signal, onProgress = () => {}) {
+export const extrairNadaConsta = (file, signal, onProgress) =>
+  lerDocumento(file, signal, onProgress, {
+    extrair: extrairCamposNadaConsta,
+    limitePaginas: 10,
+    camposSuficientes: 3,
+  })
+
+export async function lerDocumento(file, signal, onProgress = () => {}, opcoes) {
   let task, renderTask, worker, preparador
   const cancelar = () => {
     renderTask?.cancel()
@@ -30,8 +37,8 @@ export async function extrairNadaConsta(file, signal, onProgress = () => {}) {
         wasmUrl: `${assets}wasm/`,
       })
       pdf = await task.promise
-      if (pdf.numPages > 10) throw new Error('PDF_PAGE_LIMIT')
-      for (let n = 1; n <= pdf.numPages; n++) {
+      if (pdf.numPages > opcoes.limitePaginas) throw new Error('PDF_PAGE_LIMIT')
+      for (let n = 1; n <= Math.min(pdf.numPages, opcoes.paginasLidas ?? pdf.numPages); n++) {
         signal.throwIfAborted()
         const page = await pdf.getPage(n)
         const viewport = page.getViewport({ scale: 1 })
@@ -46,12 +53,16 @@ export async function extrairNadaConsta(file, signal, onProgress = () => {}) {
         )
         page.cleanup()
       }
-      dados = extrairCamposNadaConsta(pages, conflitos)
-      if (conflitos.size || Object.keys(dados).length >= 3)
+      dados = opcoes.extrair(pages, conflitos)
+      if (
+        conflitos.size ||
+        Object.keys(dados).length >= opcoes.camposSuficientes ||
+        (opcoes.semOcrSeTiverTexto && pages.some((pagina) => pagina.length > 20))
+      )
         return { dados, usouOcr: false, conflitos: [...conflitos] }
     }
     signal.throwIfAborted()
-    onProgress('Preparando a leitura da imagem da certidão…')
+    onProgress('Preparando a leitura da imagem…')
     const { createWorker, PSM } = await import('tesseract.js')
     const base = new URL(`${import.meta.env.BASE_URL}ocr/`, window.location.href).href
     const pending = createWorker('por', 1, {
@@ -61,7 +72,7 @@ export async function extrairNadaConsta(file, signal, onProgress = () => {}) {
       errorHandler: () => {},
       logger: (m) => {
         if (!signal.aborted && m.status === 'recognizing text')
-          onProgress(`Lendo a certidão: ${Math.round(m.progress * 100)}%`)
+          onProgress(`Lendo o documento: ${Math.round(m.progress * 100)}%`)
       },
     })
     pending.then(
@@ -76,12 +87,12 @@ export async function extrairNadaConsta(file, signal, onProgress = () => {}) {
     if (!pdfFile) {
       try {
         preparador = await criarPreparadorCnh(signal, () => {}, { documento: 'CRLV' })
-        onProgress('Corrigindo a iluminação e a perspectiva da foto da certidão…')
+        onProgress('Corrigindo a iluminação e a perspectiva da foto…')
         preparada = (await preparador.preparar(file)).imagens[0]
       } catch {
         signal.throwIfAborted()
         // OCR still works on the original if image preparation is unavailable.
-        onProgress('Lendo a foto original da certidão…')
+        onProgress('Lendo a foto original…')
       } finally {
         preparador?.terminar()
         preparador = null
@@ -143,7 +154,7 @@ export async function extrairNadaConsta(file, signal, onProgress = () => {}) {
           }))
         const divergencias = new Set()
         const leitura = {
-          dados: extrairCamposNadaConsta([items], divergencias),
+          dados: opcoes.extrair([items], divergencias),
           conflitos: [...divergencias],
         }
         signal.throwIfAborted()

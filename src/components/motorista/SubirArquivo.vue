@@ -128,6 +128,38 @@
             <p v-if="fotosCnh" class="text-caption text-grey-7 q-mt-sm">
               Envie os dois lados da mesma CNH, inteiros, legíveis e sem reflexos.
             </p>
+            <template v-if="isSeguro">
+              <q-banner
+                v-if="resultadoExtracao && !extraindo"
+                role="status"
+                rounded
+                class="q-mt-md"
+                :class="resultadoExtracao.preenchidos ? 'bg-blue-1 text-primary' : 'bg-amber-1'"
+                >{{ resultadoExtracao.message }}</q-banner
+              >
+              <q-input
+                v-model="validadeSeguro"
+                class="q-mt-md"
+                outlined
+                stack-label
+                type="date"
+                label="Data de validade"
+                :loading="extraindo"
+                :disable="ocupado || extraindo || !pode('documentos.analisar')"
+                :rules="[(val) => !!val || 'Informe a data de validade']"
+                :error="!!errors['informacoes_complementares.data_validade']"
+                :error-message="errors['informacoes_complementares.data_validade']?.[0]"
+                :hint="
+                  extraindo
+                    ? progressoExtracao
+                    : 'Confira com o documento. Se ele não trouxer a data, preencha manualmente.'
+                "
+              />
+              <q-banner v-if="seguroVencido" rounded class="bg-amber-1 q-mt-md"
+                >A data de validade informada já passou. Confira o documento antes de
+                continuar.</q-banner
+              >
+            </template>
             <template v-if="isCnh">
               <q-banner
                 v-if="resultadoExtracao && !carregandoCampos"
@@ -300,10 +332,20 @@
               !!fileVerso ||
               camposEditados.size > 0
             "
+            :before-approve="salvarValidadeSeguro"
             @updated="onAnaliseUpdated"
           />
           <q-space />
           <q-btn flat label="Cancelar" :disable="ocupado" v-close-popup />
+          <q-btn
+            v-if="podeSalvarValidade"
+            outline
+            color="primary"
+            label="Salvar validade"
+            :loading="enviando"
+            :disable="ocupado || extraindo || !validadeSeguro"
+            @click="salvarValidadeDoAprovado"
+          />
           <q-btn
             type="submit"
             label="Enviar"
@@ -316,7 +358,8 @@
               carregando ||
               extraindo ||
               erroCarregamento ||
-              !motoristaId
+              !motoristaId ||
+              (isSeguro && !validadeSeguro)
             "
           />
         </q-card-actions>
@@ -333,6 +376,8 @@ import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { extrairCnhPdf } from 'src/utils/extrairCnhPdf'
 import { extrairCnhImagens } from 'src/utils/extrairCnhImagens'
+import { extrairSeguro } from 'src/utils/extrairSeguro'
+import { baixarAnexoDocumento } from 'src/utils/baixarAnexoDocumento'
 import AcoesAnaliseDocumento from 'src/components/motorista/AcoesAnaliseDocumento.vue'
 
 const props = defineProps({
@@ -347,6 +392,11 @@ const model = computed({
   set: (val) => emit('update:modelValue', val),
 })
 const isCnh = computed(() => props.documento?.possui_dados_cnh === true)
+const isSeguro = computed(() => props.documento?.tipo_documento === 'seguro_obrigatorio')
+const validadeSeguro = ref('')
+const seguroVencido = computed(
+  () => !!validadeSeguro.value && validadeSeguro.value < new Date().toLocaleDateString('sv-SE'),
+)
 const isReenvio = computed(() => props.documento?.status === 'reprovado')
 const motivoReprovacaoTexto = computed(
   () =>
@@ -357,6 +407,14 @@ const motivoReprovacaoTexto = computed(
 const formatoCnh = ref('pdf')
 const anexoSalvoRemovido = ref(false)
 const anexoSalvoAtivo = computed(() => !anexoSalvoRemovido.value && !!props.documento?.url)
+// aprovado antes de existir o campo: sem isto, a validade só entraria com um novo envio
+const podeSalvarValidade = computed(
+  () =>
+    isSeguro.value &&
+    anexoSalvoAtivo.value &&
+    props.documento?.status === 'aprovado' &&
+    pode('documentos.analisar'),
+)
 const documentoSalvoPdf = computed(
   () =>
     props.documento?.mime_type === 'application/pdf' ||
@@ -517,7 +575,82 @@ function beforeShow() {
   errors.value = {}
   erroCarregamento.value = false
   if (isCnh.value) loadMotorista()
+  validadeSeguro.value = props.documento?.informacoes_complementares?.data_validade ?? ''
+  if (isSeguro.value && anexoSalvoAtivo.value && !validadeSeguro.value)
+    void lerValidadeSeguro((signal) => baixarAnexoDocumento(props.documento, 'frente', signal))
 }
+
+async function lerValidadeSeguro(obterArquivo) {
+  const controller = new AbortController()
+  extracaoController = controller
+  extraindo.value = true
+  progressoExtracao.value = 'Procurando a validade no documento…'
+  try {
+    const arquivo = await obterArquivo(controller.signal)
+    const leitura = await extrairSeguro(arquivo, controller.signal, (message) => {
+      if (extracaoController === controller) progressoExtracao.value = message
+    })
+    if (controller.signal.aborted) return
+    if (leitura.dados.data_validade) validadeSeguro.value = leitura.dados.data_validade
+    resultadoExtracao.value = {
+      preenchidos: leitura.dados.data_validade ? 1 : 0,
+      message: leitura.dados.data_validade
+        ? 'Validade preenchida a partir do documento. Confira antes de continuar.'
+        : leitura.conflitos.length
+          ? 'O documento traz datas diferentes. Confira e preencha a validade manualmente.'
+          : 'Não encontramos a validade no documento. Preencha manualmente.',
+    }
+  } catch {
+    if (!controller.signal.aborted)
+      resultadoExtracao.value = {
+        preenchidos: 0,
+        message: 'Não foi possível ler o documento. Preencha a validade manualmente.',
+      }
+  } finally {
+    if (extracaoController === controller) {
+      extracaoController = null
+      extraindo.value = false
+    }
+  }
+}
+
+// Roda antes de aprovar: é aqui que a validade do arquivo enviado pelo app é gravada.
+async function salvarValidadeSeguro() {
+  if (!isSeguro.value) return true
+  if (!validadeSeguro.value) {
+    $q.notify({ type: 'negative', message: 'Informe a data de validade antes de aprovar.' })
+    return false
+  }
+  await api.put(`/motorista-documentos/${props.documento.id}`, {
+    informacoes_complementares: { data_validade: validadeSeguro.value },
+  })
+  return true
+}
+
+async function salvarValidadeDoAprovado() {
+  enviando.value = true
+  try {
+    await salvarValidadeSeguro()
+    $q.notify({ type: 'positive', message: 'Validade do seguro salva.' })
+    emit('updated')
+    model.value = false
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Não foi possível salvar a validade.',
+    })
+  } finally {
+    enviando.value = false
+  }
+}
+
+watch(file, (selecionado) => {
+  if (!isSeguro.value) return
+  cancelarExtracao()
+  if (!selecionado) return
+  validadeSeguro.value = ''
+  void lerValidadeSeguro(async () => selecionado)
+})
 
 function onHide() {
   loadVersion++
@@ -552,7 +685,31 @@ function restaurarCamposExtraidos() {
   camposExtraidos.clear()
 }
 
-async function preencherDadosCnh(selectedFile, selectedVerso) {
+// Com o anexo enviado pelo motorista, só completa o que ainda está em branco.
+async function lerAnexoDoMotorista(version) {
+  if (!isCnh.value || !anexoSalvoAtivo.value || props.documento?.status !== 'em_analise') return
+  extraindo.value = true
+  progressoExtracao.value = 'Lendo a CNH enviada pelo motorista…'
+  try {
+    const frente = await baixarAnexoDocumento(props.documento)
+    const verso = props.documento.verso?.url
+      ? await baixarAnexoDocumento(props.documento, 'verso')
+      : null
+    if (version !== loadVersion) return
+    await preencherDadosCnh(frente, verso, true)
+  } catch {
+    if (version === loadVersion)
+      resultadoExtracao.value = {
+        preenchidos: 0,
+        message:
+          'Não foi possível ler o arquivo enviado pelo motorista. Confira a prévia e preencha os dados manualmente.',
+      }
+  } finally {
+    if (version === loadVersion) extraindo.value = false
+  }
+}
+
+async function preencherDadosCnh(selectedFile, selectedVerso, somenteVazios = false) {
   cancelarExtracao()
   const controller = new AbortController()
   extracaoController = controller
@@ -579,6 +736,7 @@ async function preencherDadosCnh(selectedFile, selectedVerso) {
     let preenchidos = 0
     for (const [name, value] of Object.entries(dados)) {
       if (camposEditados.has(name) || cnh.value[name] !== anteriores[name]) continue
+      if (somenteVazios && cnh.value[name] !== '' && cnh.value[name] != null) continue
       camposExtraidos.set(name, { anterior: anteriores[name], extraido: value })
       cnh.value[name] = value
       preenchidos++
@@ -629,6 +787,8 @@ async function loadMotorista() {
     }
     const ear = Object.hasOwn(informacoes, 'ear') ? informacoes.ear : data.ear
     cnh.value.ear = ear == null ? null : !!Number(ear)
+    carregando.value = false
+    await lerAnexoDoMotorista(version)
   } catch {
     if (version === loadVersion) erroCarregamento.value = true
   } finally {
@@ -665,6 +825,7 @@ async function request() {
   if (fotosCnh.value) data.append('arquivo_verso', fileVerso.value)
   data.append('motorista_id', props.motoristaId)
   data.append('tipo_documento', props.documento.tipo_documento)
+  if (isSeguro.value) data.append('informacoes_complementares[data_validade]', validadeSeguro.value)
   if (isCnh.value) {
     for (const [name, value] of Object.entries(cnh.value)) {
       data.append(

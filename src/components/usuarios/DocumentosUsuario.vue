@@ -402,7 +402,7 @@ async function mudarStatusDocumento(status) {
   } catch (err) {
     console.log(err, 'err')
     // model.value = false
-    $q.notify({ type: 'negative', message: err.message })
+    $q.notify({ type: 'negative', message: err.response?.data?.message || err.message })
   } finally {
     // model.value = false
   }
