@@ -85,6 +85,12 @@ const routes = [
       },
 
       {
+        path: 'modelos-veiculos',
+        meta: { permissao: 'veiculos.consultar' },
+        component: () => import('src/pages/PaginaModelosVeiculos.vue'),
+      },
+
+      {
         path: 'tarifas',
         meta: { permissao: 'configuracoes.gerenciar' },
         component: () => import('src/pages/PaginaTarifas.vue'),
