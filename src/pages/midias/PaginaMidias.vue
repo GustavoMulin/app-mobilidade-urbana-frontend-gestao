@@ -2,12 +2,6 @@
   <q-page class="q-pa-md">
     <CriarMidia @updated="onRequest" v-model="dialog.cadastrar" />
     <VisualizarRegistro v-model="dialog.visualizar" tipo="midia" :registro="registroVisualizado" />
-    <ExcluirUsuario
-      :acao="openPress"
-      :data="usuarioSelecionado"
-      @deleted="onRequest"
-      v-model="dialog.excluir"
-    />
     <q-card>
       <q-table
         :rows="data"
@@ -67,6 +61,10 @@
               {{ props.row.titulo }}
             </q-td>
 
+            <q-td key="cidade">
+              {{ props.row.cidade ? `${props.row.cidade.nome}/${props.row.cidade.uf}` : '—' }}
+            </q-td>
+
             <q-td key="imagem">
               <q-item>
                 <q-item-section thumbnail>
@@ -88,9 +86,21 @@
                 </template>
               </q-btn>
 
-              <q-btn @click="openExcluir(props.row)" dense flat icon="delete">
+              <q-btn
+                v-if="dominio === 'publicidades'"
+                @click="arquivar(props.row)"
+                dense
+                flat
+                icon="delete"
+              >
                 <q-tooltip transition-show="flip-right" transition-hide="flip-left">
                   arquivar
+                </q-tooltip>
+              </q-btn>
+
+              <q-btn v-else @click="restaurar(props.row)" dense flat icon="restore_from_trash">
+                <q-tooltip transition-show="flip-right" transition-hide="flip-left">
+                  restaurar
                 </q-tooltip>
               </q-btn>
             </q-td>
@@ -128,17 +138,17 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import VisualizarRegistro from 'src/components/VisualizarRegistro.vue'
-import ExcluirUsuario from 'src/components/usuarios/ExcluirUsuario.vue'
 // import CardPerfilUsuario from 'src/components/usuarios/CardPerfilUsuario.vue'
 import CriarMidia from 'src/components/midia/CriarMidia.vue'
+
+const $q = useQuasar()
 
 // STATES
 const data = ref([])
 const dominio = ref('publicidades')
-const usuarioSelecionado = ref(null)
-const openPress = ref(null)
 const loading = ref(false)
 const search = ref('')
 const grid = ref(false)
@@ -147,7 +157,6 @@ const dialog = reactive({
   editar: false,
   cadastrar: false,
   visualizar: false,
-  excluir: false,
 })
 
 const registroVisualizado = ref(null)
@@ -160,6 +169,7 @@ const pagination = ref({
 const columns = [
   { name: 'id', label: 'ID', field: 'id', align: 'left' },
   { name: 'titulo', label: 'Título', field: 'titulo', align: 'left' },
+  { name: 'cidade', label: 'Cidade', field: (row) => row.cidade?.nome, align: 'left' },
   { name: 'imagem', label: 'Banner', field: 'path', align: 'left' },
   { name: 'acoes', label: 'Ações', align: 'center' },
 ]
@@ -175,10 +185,29 @@ const openVisualizar = (registro) => {
   dialog.visualizar = true
 }
 
-const openExcluir = (usuario) => {
-  usuarioSelecionado.value = [usuario]
-  openPress.value = 'arquivar'
-  dialog.excluir = true
+// o banner sai do app e vai para Arquivados (dá para restaurar)
+const arquivar = (banner) => {
+  $q.dialog({
+    title: 'Arquivar',
+    message: `Arquivar o anúncio "${banner.titulo}"? Ele deixa de aparecer no app.`,
+    cancel: true,
+    persistent: true,
+  }).onOk(() => acaoNoBanner(() => api.delete(`publicidades/${banner.id}`)))
+}
+
+const restaurar = (banner) => acaoNoBanner(() => api.post(`publicidades/${banner.id}/restaurar`))
+
+async function acaoNoBanner(chamada) {
+  try {
+    const { data: resposta } = await chamada()
+    $q.notify({ type: 'positive', message: resposta.message })
+    await request()
+  } catch (err) {
+    $q.notify({
+      type: 'warning',
+      message: err.response?.data?.message || 'Erro na operação',
+    })
+  }
 }
 
 const request = async (props) => {
@@ -187,9 +216,9 @@ const request = async (props) => {
   try {
     const response = await api.get(`${dominio.value}`, {
       params: {
-        search: search.value || '',
         page: page,
-        rowsPerPage: rowsPerPage,
+        // 0 = "todos" na tabela; o backend devolve até 50 por página
+        per_page: rowsPerPage || 50,
       },
     })
 
