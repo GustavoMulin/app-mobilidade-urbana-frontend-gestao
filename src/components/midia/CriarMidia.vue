@@ -1,6 +1,11 @@
 <template>
   <section>
-    <q-dialog v-model="model" :persistent="enviando" @before-hide="beforeHide">
+    <q-dialog
+      v-model="model"
+      :persistent="enviando"
+      @before-show="carregarCidades"
+      @before-hide="beforeHide"
+    >
       <q-card style="width: 700px; max-width: 80vw">
         <!-- HEADER -->
         <q-toolbar>
@@ -35,9 +40,28 @@
                     label="Título"
                     outlined
                     dense
-                    maxlength="255"
+                    maxlength="120"
                     :disable="enviando"
                     :rules="[(val) => (val && val.length >= 3) || 'Campo obrigatório']"
+                  />
+                </q-item>
+              </div>
+
+              <!-- o app mostra o banner só para quem está nesta cidade -->
+              <div class="col-md-6 col-12">
+                <q-item>
+                  <q-select
+                    class="full-width"
+                    v-model="banner.cidade_id"
+                    :options="cidades"
+                    label="Cidade"
+                    outlined
+                    dense
+                    emit-value
+                    map-options
+                    :loading="carregandoCidades"
+                    :disable="enviando"
+                    :rules="[(val) => !!val || 'Selecione a cidade']"
                   />
                 </q-item>
               </div>
@@ -50,12 +74,12 @@
               v-model="file"
               label="Selecione o arquivo"
               counter
-              accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+              accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
               :max-files="1"
-              :max-file-size="12337152"
+              :max-file-size="TAMANHO_MAXIMO"
               :disable="enviando"
               :rules="[(val) => !!val || 'Selecione uma imagem']"
-              hint="JPG ou PNG de até 12048 KB"
+              hint="JPG, PNG ou WEBP de até 5 MB, no formato 2,4 : 1 (ex.: 1200 × 500)"
               @rejected="arquivoRejeitado"
             >
               <template v-slot:before>
@@ -106,12 +130,18 @@ const model = computed({
   set: (val) => emit('update:modelValue', val),
 })
 
+// o mesmo limite do backend (PUBLICIDADE_TAMANHO_MAXIMO_KB)
+const TAMANHO_MAXIMO = 5 * 1024 * 1024
+
 // STATE
 const file = ref(null)
 const enviando = ref(false)
+const cidades = ref([])
+const carregandoCidades = ref(false)
 
 const banner = reactive({
   titulo: '',
+  cidade_id: null,
 })
 
 // LIFECYCLE
@@ -119,12 +149,31 @@ async function beforeHide() {
   file.value = null
   Object.assign(banner, {
     titulo: '',
+    cidade_id: null,
   })
+}
+
+async function carregarCidades() {
+  carregandoCidades.value = true
+  try {
+    const { data } = await api.get('/cidades')
+    cidades.value = data.map((cidade) => ({
+      label: `${cidade.nome}/${cidade.uf}`,
+      value: cidade.id,
+    }))
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Não foi possível carregar as cidades.',
+    })
+  } finally {
+    carregandoCidades.value = false
+  }
 }
 
 // ACTION
 function arquivoRejeitado() {
-  $q.notify({ type: 'negative', message: 'Selecione uma imagem JPG ou PNG de até 12048 KB.' })
+  $q.notify({ type: 'negative', message: 'Selecione uma imagem JPG, PNG ou WEBP de até 5 MB.' })
 }
 
 async function request() {
@@ -134,6 +183,7 @@ async function request() {
   const data = new FormData()
   data.append('arquivo', file.value)
   data.append('titulo', banner.titulo)
+  data.append('cidade_id', banner.cidade_id)
 
   try {
     const res = await api.post('/publicidades', data, {
