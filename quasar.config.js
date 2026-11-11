@@ -60,7 +60,23 @@ export default defineConfig((/* ctx */) => {
       // polyfillModulePreload: true,
       // distDir
 
-      // extendViteConf (viteConf) {},
+      // Evita que o dev server caia com "read ECONNRESET" (Windows) quando o
+      // navegador fecha abruptamente uma conexão (reload de aba, HMR WebSocket).
+      extendViteConf(viteConf) {
+        viteConf.plugins = viteConf.plugins || []
+        viteConf.plugins.push({
+          name: 'ignore-socket-reset',
+          configureServer(server) {
+            server.httpServer?.on('connection', (socket) => {
+              socket.on('error', (err) => {
+                if (err.code !== 'ECONNRESET' && err.code !== 'EPIPE') {
+                  console.error('[socket]', err)
+                }
+              })
+            })
+          },
+        })
+      },
       // viteVuePluginOptions: {},
 
       vitePlugins: [
