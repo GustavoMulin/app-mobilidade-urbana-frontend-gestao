@@ -11,7 +11,10 @@
       </q-item-section>
 
       <q-item-section>
-        <q-item-label class="text-subtitle1 text-bold">{{ motorista.nome }}</q-item-label>
+        <q-item-label class="text-subtitle1 text-bold">
+          {{ motorista.nome }}
+          <q-badge v-if="temNovo" color="primary" class="q-ml-sm" label="Novo" />
+        </q-item-label>
         <q-item-label caption>CPF: {{ motorista.cpf }}</q-item-label>
         <q-item-label caption>
           <q-badge
@@ -72,7 +75,15 @@
         </q-item-section>
 
         <q-item-section>
-          <q-item-label class="text-bold">{{ documento.titulo }}</q-item-label>
+          <q-item-label class="text-bold">
+            {{ documento.titulo }}
+            <q-badge
+              v-if="novosIds.has(documento.id)"
+              color="primary"
+              class="q-ml-sm"
+              label="Novo"
+            />
+          </q-item-label>
           <q-item-label caption>
             <span v-if="documento.veiculo?.placa">
               {{ documento.veiculo.placa }}
@@ -151,9 +162,14 @@ const props = defineProps({
   status: { type: String, default: 'em_analise' },
   podeAnalisar: Boolean,
   ocupado: Boolean,
+  novosIds: { type: Object, default: () => new Set() },
 })
 
 defineEmits(['visualizar', 'aprovar', 'reprovar', 'conferir', 'aprovar-todos'])
+
+const temNovo = computed(() =>
+  props.motorista.documentos.some((documento) => props.novosIds.has(documento.id)),
+)
 
 const aprovaveis = computed(() =>
   props.motorista.documentos.filter((documento) => !precisaConferencia(documento)),

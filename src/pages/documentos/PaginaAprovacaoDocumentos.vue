@@ -14,7 +14,7 @@
         icon="refresh"
         aria-label="Atualizar"
         :loading="carregando"
-        @click="buscar"
+        @click="buscar()"
       />
     </div>
 
@@ -59,10 +59,26 @@
       </div>
     </div>
 
+    <q-banner
+      v-if="novosRecebidos > 0"
+      class="bg-blue-1 text-primary q-mb-md"
+      rounded
+      dense
+      role="status"
+    >
+      <template #avatar><q-icon name="upload_file" /></template>
+      {{ novosRecebidos }}
+      {{ novosRecebidos === 1 ? 'novo documento recebido' : 'novos documentos recebidos' }}
+      desde que você abriu a tela.
+      <template #action>
+        <q-btn flat no-caps label="Marcar como vistos" @click="marcarComoVistos" />
+      </template>
+    </q-banner>
+
     <q-banner v-if="erro" class="bg-red-1 text-negative q-mb-md" rounded>
       Não foi possível carregar a fila de documentos.
       <template #action>
-        <q-btn flat label="Tentar novamente" @click="buscar" />
+        <q-btn flat label="Tentar novamente" @click="buscar()" />
       </template>
     </q-banner>
 
@@ -94,6 +110,7 @@
         :status="status"
         :pode-analisar="pode('documentos.analisar')"
         :ocupado="ocupados.has(motorista.id)"
+        :novos-ids="novosIds"
         @visualizar="abrirVisualizacao"
         @aprovar="aprovar"
         @reprovar="abrirReprovacao"
@@ -110,7 +127,7 @@
         direction-links
         boundary-numbers
         :disable="carregando"
-        @update:model-value="buscar"
+        @update:model-value="buscar()"
       />
     </div>
 
@@ -156,13 +173,13 @@
       v-model="dialog.cadastro"
       :usuario="selecionado.motorista?.user"
       :motorista-id="selecionado.motorista?.id"
-      @updated="buscar"
+      @updated="buscar()"
     />
   </q-page>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { useAuthStore } from 'src/stores/auth'
@@ -171,6 +188,8 @@ import VisualizarDocumento from 'src/components/documentos/VisualizarDocumento.v
 import ReprovarDocumento from 'src/components/motorista/ReprovarDocumento.vue'
 import DocumentosUsuario from 'src/components/usuarios/DocumentosUsuario.vue'
 import { STATUS_FILA, precisaConferencia } from 'src/utils/documentosFila'
+import { getEcho } from 'src/services/echo'
+import { useAtualizacaoSemConexao } from 'src/composables/useAtualizacaoSemConexao'
 
 const { pode } = useAuthStore()
 const $q = useQuasar()
@@ -204,12 +223,41 @@ function montarOpcoes(valores) {
   }))
 }
 
+const novosRecebidos = ref(0)
+const novosIds = ref(new Set())
+let idsConhecidos = null
+let porEvento = false
+
+// Sem toast por documento: com centenas de envios, só um contador e um selo "Novo".
+function registrarNovos(data, silencioso, anteriores) {
+  const ids = new Set(data.data.flatMap((motorista) => motorista.documentos.map((d) => d.id)))
+  if (silencioso && idsConhecidos) {
+    const adicionados = new Set(novosIds.value)
+    ids.forEach((id) => {
+      if (!idsConhecidos.has(id)) adicionados.add(id)
+    })
+    novosIds.value = adicionados
+  }
+  idsConhecidos = ids
+  // sem o WebSocket não há eventos para contar: usa o aumento do total em análise
+  const aumento = data.totais.em_analise.documentos - (anteriores ?? Infinity)
+  if (silencioso && !porEvento && aumento > 0) novosRecebidos.value += aumento
+  porEvento = false
+}
+
+function marcarComoVistos() {
+  novosRecebidos.value = 0
+  novosIds.value = new Set()
+}
+
 let versao = 0
 
-async function buscar() {
+async function buscar(silencioso = false) {
   const minha = ++versao
-  carregando.value = true
-  erro.value = false
+  if (!silencioso) {
+    carregando.value = true
+    erro.value = false
+  }
   try {
     const { data } = await api.get('/motorista-documentos/fila', {
       params: {
@@ -226,12 +274,14 @@ async function buscar() {
       pagina.value = Math.max(1, data.last_page)
       return buscar()
     }
+    const anteriores = totais.value.em_analise?.documentos
     motoristas.value = data.data
     ultimaPagina.value = data.last_page
     totais.value = data.totais
     opcoesStatus.value = montarOpcoes(data.totais)
+    registrarNovos(data, silencioso, anteriores)
   } catch {
-    if (minha === versao) erro.value = true
+    if (minha === versao && !silencioso) erro.value = true
   } finally {
     if (minha === versao) carregando.value = false
   }
@@ -342,7 +392,53 @@ function aprovarTodos(motorista, documentos) {
   })
 }
 
-onMounted(buscar)
+// TEMPO REAL
+const canalAutorizado = ref(false)
+const atualizacaoHabilitada = ref(false)
+let echo = null
+let timerAtualizacao = null
+
+function agendarAtualizacao() {
+  clearTimeout(timerAtualizacao)
+  timerAtualizacao = setTimeout(() => void buscar(true), 400)
+}
+
+// sem o WebSocket, consulta a cada 15 s
+useAtualizacaoSemConexao(canalAutorizado, atualizacaoHabilitada, agendarAtualizacao)
+
+function aoAlterarFila(evento) {
+  if (evento?.motivo === 'enviado') {
+    novosRecebidos.value += 1
+    porEvento = true
+  }
+  agendarAtualizacao()
+}
+
+function assinarCanal() {
+  echo = getEcho()
+  echo
+    ?.private('documentos.fila')
+    .listen('.fila.alterada', aoAlterarFila)
+    .subscribed(() => {
+      canalAutorizado.value = true
+      agendarAtualizacao()
+    })
+    .error(() => {
+      canalAutorizado.value = false
+    })
+}
+
+onMounted(() => {
+  atualizacaoHabilitada.value = true
+  buscar()
+  assinarCanal()
+})
+
+onBeforeUnmount(() => {
+  atualizacaoHabilitada.value = false
+  clearTimeout(timerAtualizacao)
+  echo?.leave('documentos.fila')
+})
 </script>
 
 <style scoped>
