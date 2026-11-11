@@ -62,9 +62,14 @@ divergência impede a aprovação, mesmo que o campo editável tenha sido altera
 ## Conferência na gestão
 
 1. Abra **Motoristas → Documentos** do motorista que enviou o arquivo.
-2. Localize **Novo veículo enviado pelo app**. Cada envio aparece separadamente.
-3. Expanda o documento. Os campos salvos são exibidos. Envios antigos ou
-   incompletos são lidos e salvos automaticamente, preservando dados conferidos.
+2. Os CRLVs ficam todos na linha **Veículo - CRLV**, que conta quantos estão
+   aprovados, reprovados ou em análise. Sem veículo cadastrado, a linha mostra o
+   envio mais recente do app, com a marcação **Novo veículo enviado pelo app**.
+3. Expanda o documento. As setas **Voltar** e **Próximo**, e o seletor de placa,
+   passam por todos os CRLVs do motorista: os dos veículos cadastrados e os envios
+   do app que ainda não viraram veículo (marcados como "Enviado pelo app"). Os
+   campos salvos são exibidos. Envios antigos ou incompletos são lidos e salvos
+   automaticamente, preservando dados conferidos.
 4. Confira a prévia e complete manualmente o que não for reconhecido.
 5. Clique em **Aprovar**. Eventuais correções são validadas e salvas antes da
    aprovação; uma falha nessa gravação impede aprovar. Não há botão separado de

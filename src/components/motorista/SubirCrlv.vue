@@ -26,11 +26,11 @@
                   aria-label="Voltar CRLV"
                   class="crlv-navegacao-botao"
                   :disable="ocupado || lendo || indiceDocumento <= 0"
-                  @click="navegarCrlv(documentosCrlv[indiceDocumento - 1]?.veiculo_id)"
+                  @click="navegarCrlv(documentosCrlv[indiceDocumento - 1]?.chave)"
                 />
                 <q-select
                   borderless
-                  :model-value="veiculoId === null ? null : String(veiculoId)"
+                  :model-value="chaveAtual"
                   :options="opcoesPlacas"
                   label="Placa"
                   dense
@@ -57,6 +57,7 @@
                     <q-item v-bind="itemProps">
                       <q-item-section>
                         <q-item-label>{{ opt.label }}</q-item-label>
+                        <q-item-label v-if="opt.pedidoDoApp" caption>Enviado pelo app</q-item-label>
                         <q-item-label caption>
                           <q-badge :color="opt.color" :label="opt.statusLabel" />
                         </q-item-label>
@@ -78,7 +79,7 @@
                     indiceDocumento < 0 ||
                     indiceDocumento === documentosCrlv.length - 1
                   "
-                  @click="navegarCrlv(documentosCrlv[indiceDocumento + 1]?.veiculo_id)"
+                  @click="navegarCrlv(documentosCrlv[indiceDocumento + 1]?.chave)"
                 />
                 <q-btn
                   color="primary"
@@ -342,6 +343,8 @@ const props = defineProps({
   origem: { type: String, default: 'documentos' },
   documento: Object,
   veiculos: { type: Array, default: () => [] },
+  // CRLVs de veículo novo enviados pelo app, ainda sem veículo cadastrado
+  solicitacoes: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['update:modelValue', 'updated'])
 const $q = useQuasar()
@@ -368,9 +371,14 @@ const dados = ref({}),
   urlLocal = ref('')
 const analisando = ref(false)
 const ocupado = computed(() => enviando.value || analisando.value)
+// o veículo é navegado pelo id dele (o CRLV atual pode mudar); o pedido do app, pelo documento
+const chaveDe = (doc) =>
+  doc?.veiculo_id ? `veiculo:${doc.veiculo_id}` : doc?.id ? `pedido:${doc.id}` : null
+const chaveAtual = computed(() => chaveDe(documento.value))
+// todos os CRLVs do motorista passam pelas setas: os dos veículos e os pedidos do app
 const documentosCrlv = computed(() =>
-  (solicitacaoPendente.value ? [] : props.veiculos)
-    .map((veiculo) => {
+  [
+    ...props.veiculos.map((veiculo) => {
       const atual =
         String(props.documento?.veiculo_id) === String(veiculo.id)
           ? props.documento
@@ -378,21 +386,29 @@ const documentosCrlv = computed(() =>
       return atual?.id
         ? { ...atual, tipo_documento: 'crlv', veiculo_id: veiculo.id, veiculo }
         : null
-    })
-    .filter(Boolean),
+    }),
+    ...props.solicitacoes.filter((pedido) => !pedido.veiculo_id),
+  ]
+    .filter(Boolean)
+    .map((doc) => ({ ...doc, chave: chaveDe(doc) })),
 )
 const indiceDocumento = computed(() =>
-  documentosCrlv.value.findIndex((doc) => String(doc.veiculo_id) === String(veiculoId.value)),
+  documentosCrlv.value.findIndex((doc) => doc.chave === chaveAtual.value),
 )
 const opcoesPlacas = computed(() =>
   documentosCrlv.value.map((doc) => {
-    const status = doc.veiculo.status || doc.status
+    const status = doc.veiculo?.status || doc.status
     const situacao = {
       aprovado: { color: 'green', statusLabel: 'Aprovado' },
       reprovado: { color: 'red', statusLabel: 'Reprovado' },
       em_analise: { color: 'orange', statusLabel: 'Em análise' },
     }[status] || { color: 'grey', statusLabel: 'Não enviado' }
-    return { label: doc.veiculo.placa, value: String(doc.veiculo_id), ...situacao }
+    return {
+      label: doc.veiculo?.placa || doc.informacoes_complementares?.placa || 'Sem placa',
+      value: doc.chave,
+      pedidoDoApp: !doc.veiculo_id,
+      ...situacao,
+    }
   }),
 )
 const editados = reactive(new Set())
@@ -559,9 +575,9 @@ function carregarDocumento() {
     }
   })
 }
-function navegarCrlv(id) {
-  if (ocupado.value || lendo.value || String(id) === String(veiculoId.value)) return
-  const destino = documentosCrlv.value.find((doc) => String(doc.veiculo_id) === String(id))
+function navegarCrlv(chave) {
+  if (ocupado.value || lendo.value || chave === chaveAtual.value) return
+  const destino = documentosCrlv.value.find((doc) => doc.chave === chave)
   if (!destino) return
   trocarDocumento(destino)
 }
