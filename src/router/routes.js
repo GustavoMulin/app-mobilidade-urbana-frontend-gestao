@@ -67,6 +67,12 @@ const routes = [
       },
 
       {
+        path: 'aprovacao-documentos',
+        meta: { permissao: 'documentos.consultar' },
+        component: () => import('src/pages/documentos/PaginaAprovacaoDocumentos.vue'),
+      },
+
+      {
         path: 'passageiros',
         meta: { permissao: 'usuarios.consultar' },
         component: () => import('src/pages/usuarios/PaginaPassageiros.vue'),

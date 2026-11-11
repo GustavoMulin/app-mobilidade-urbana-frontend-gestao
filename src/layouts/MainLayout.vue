@@ -179,6 +179,12 @@ export default {
           },
           { icon: 'group', text: 'Motoristas', to: '/motoristas', permissao: 'usuarios.consultar' },
           {
+            icon: 'verified',
+            text: 'Aprovação de documentos',
+            to: '/aprovacao-documentos',
+            permissao: 'documentos.consultar',
+          },
+          {
             icon: 'account_balance_wallet',
             text: 'Motoristas saldo',
             to: '/motoristas-saldo',
