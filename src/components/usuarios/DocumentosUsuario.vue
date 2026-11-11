@@ -21,6 +21,7 @@
       :motorista-id="motoristaId"
       :documento="documentoSelecionado"
       :veiculos="veiculos"
+      :solicitacoes="solicitacoesCrlv"
     />
     <q-dialog v-model="model" @before-show="beforeShow" @before-hide="onBeforeHide">
       <q-card class="documentos-usuario-dialog" style="width: 600px; max-width: 50vw">
@@ -42,7 +43,7 @@
           :class="{ 'documentos-carregando': carregandoDocumentos }"
           bordered
           flat
-          :rows="data"
+          :rows="linhas"
           :columns="columns"
           :loading="carregandoDocumentos"
           no-data-label="Nenhum documento disponível."
@@ -91,7 +92,6 @@
                         v-if="
                           props.row.tipo_documento === 'crlv' &&
                           !props.row.legado &&
-                          !props.row.nova_solicitacao &&
                           badgesCrlv.length
                         "
                         class="row q-gutter-xs"
@@ -278,14 +278,26 @@ const dialog = ref({
 
 const data = ref([])
 const veiculos = ref([])
+// CRLVs de veículo novo enviados pelo app que ainda não viraram veículo (em análise ou
+// reprovados): em vez de uma linha cada, entram na linha do CRLV e nas setas do diálogo
+const solicitacoesCrlv = computed(() =>
+  data.value.filter((doc) => doc.nova_solicitacao && !doc.veiculo_id),
+)
+// os aprovados já aparecem pelo veículo; sem veículo, a linha mostra o pedido mais recente
+const linhas = computed(() =>
+  data.value
+    .filter((doc) => !doc.nova_solicitacao)
+    .map((doc) => (doc.sem_veiculo && solicitacoesCrlv.value[0]) || doc),
+)
 const badgesCrlv = computed(() => {
-  const documentos = veiculos.value.length
-    ? veiculos.value.map(
-        (veiculo) =>
-          veiculo.ultimo_crlv ||
-          data.value.find((doc) => doc.tipo_documento === 'crlv' && doc.veiculo_id === veiculo.id),
-      )
-    : data.value.filter((doc) => doc.tipo_documento === 'crlv' && !doc.legado && doc.id)
+  const documentos = [
+    ...veiculos.value.map(
+      (veiculo) =>
+        veiculo.ultimo_crlv ||
+        data.value.find((doc) => doc.tipo_documento === 'crlv' && doc.veiculo_id === veiculo.id),
+    ),
+    ...solicitacoesCrlv.value,
+  ]
   return [
     { status: 'aprovado', label: 'Aprovado' },
     { status: 'reprovado', label: 'Reprovado' },
