@@ -108,14 +108,12 @@
         :key="motorista.id"
         :motorista="motorista"
         :status="status"
-        :pode-analisar="pode('documentos.analisar')"
         :ocupado="ocupados.has(motorista.id)"
         :novos-ids="novosIds"
-        @visualizar="abrirVisualizacao"
-        @aprovar="aprovar"
-        @reprovar="abrirReprovacao"
+        :baixando="baixando"
+        @expandir="expandir"
+        @baixar="baixarDocumento"
         @conferir="abrirCadastro"
-        @aprovar-todos="aprovarTodos"
       />
     </div>
 
@@ -131,41 +129,27 @@
       />
     </div>
 
-    <VisualizarDocumento
-      v-model="dialog.visualizar"
+    <!-- Mesmos diálogos de envio e análise da página de motoristas -->
+    <SubirNadaConsta
+      v-if="selecionado.documento?.tipo_documento === 'nada_consta'"
+      v-model="dialog.expandir"
+      :motorista-id="selecionado.motorista?.id"
       :documento="selecionado.documento"
-      :nome-motorista="selecionado.motorista?.nome"
-    >
-      <template #acoes>
-        <template
-          v-if="pode('documentos.analisar') && selecionado.documento && status !== 'aprovado'"
-        >
-          <q-btn
-            v-if="status !== 'reprovado'"
-            flat
-            no-caps
-            color="negative"
-            icon="close"
-            label="Reprovar"
-            @click="reprovarDaVisualizacao"
-          />
-          <q-btn
-            v-if="!precisaConferencia(selecionado.documento)"
-            unelevated
-            no-caps
-            color="positive"
-            icon="done"
-            label="Aprovar"
-            :loading="ocupados.has(selecionado.motorista?.id)"
-            @click="aprovarDaVisualizacao"
-          />
-        </template>
-      </template>
-    </VisualizarDocumento>
-
-    <ReprovarDocumento
-      v-model="dialog.reprovar"
+      @updated="aoAtualizar"
+    />
+    <SubirArquivo
+      v-else-if="!selecionado.documento?.possui_dados_crlv"
+      v-model="dialog.expandir"
+      :motorista-id="selecionado.motorista?.id"
       :documento="selecionado.documento"
+      @updated="aoAtualizar"
+    />
+    <SubirCrlv
+      v-else
+      v-model="dialog.expandir"
+      :motorista-id="selecionado.motorista?.id"
+      :documento="selecionado.documento"
+      :veiculos="veiculosDoMotorista"
       @updated="aoAtualizar"
     />
 
@@ -182,16 +166,16 @@
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
-import { useAuthStore } from 'src/stores/auth'
 import BlocoMotoristaDocumentos from 'src/components/documentos/BlocoMotoristaDocumentos.vue'
-import VisualizarDocumento from 'src/components/documentos/VisualizarDocumento.vue'
-import ReprovarDocumento from 'src/components/motorista/ReprovarDocumento.vue'
+import SubirArquivo from 'src/components/motorista/SubirArquivo.vue'
+import SubirCrlv from 'src/components/motorista/SubirCrlv.vue'
+import SubirNadaConsta from 'src/components/motorista/SubirNadaConsta.vue'
 import DocumentosUsuario from 'src/components/usuarios/DocumentosUsuario.vue'
-import { STATUS_FILA, precisaConferencia } from 'src/utils/documentosFila'
+import { exportFile } from 'quasar'
+import { STATUS_FILA } from 'src/utils/documentosFila'
 import { getEcho } from 'src/services/echo'
 import { useAtualizacaoSemConexao } from 'src/composables/useAtualizacaoSemConexao'
 
-const { pode } = useAuthStore()
 const $q = useQuasar()
 
 const TIPOS = [
@@ -211,8 +195,10 @@ const totais = ref({})
 const carregando = ref(false)
 const erro = ref(false)
 const ocupados = reactive(new Set())
-const selecionado = reactive({ motorista: null, documento: null })
-const dialog = reactive({ visualizar: false, reprovar: false, cadastro: false })
+const selecionado = reactive({ motorista: null, documento: {} })
+const dialog = reactive({ expandir: false, cadastro: false })
+const veiculosDoMotorista = ref([])
+const baixando = ref(null)
 
 const opcoesStatus = ref(montarOpcoes({}))
 
@@ -292,19 +278,51 @@ function aplicarFiltros() {
   buscar()
 }
 
-function selecionar(motorista, documento = null) {
+function selecionar(motorista, documento = {}) {
   selecionado.motorista = motorista
   selecionado.documento = documento
 }
 
-function abrirVisualizacao(motorista, documento) {
+// Abre o mesmo diálogo de envio/análise da página de motoristas. O resumo do motorista traz o
+// documento completo e os veículos, de que o diálogo do CRLV precisa.
+async function expandir(motorista, documento) {
   selecionar(motorista, documento)
-  dialog.visualizar = true
+  try {
+    const { data } = await api.get(`/motorista-documentos/${motorista.id}/resumo`, {
+      timeout: 15000,
+    })
+    veiculosDoMotorista.value = data.veiculos || []
+    selecionado.documento = data.data.find((item) => item.id === documento.id) || documento
+  } catch {
+    veiculosDoMotorista.value = []
+  }
+  dialog.expandir = true
 }
 
-function abrirReprovacao(motorista, documento) {
-  selecionar(motorista, documento)
-  dialog.reprovar = true
+async function baixarDocumento(documento, lado = 'frente') {
+  if (baixando.value !== null) return
+  const anexo = lado === 'verso' ? documento.verso : documento
+  if (!anexo?.url || !documento.id) return
+  baixando.value = documento.id
+  try {
+    const response = await api.get(`/motorista-documentos/${documento.id}/download`, {
+      params: { lado },
+      responseType: 'blob',
+      timeout: 30000,
+    })
+    const nome = anexo.name || `${documento.tipo_documento}-${lado}.${anexo.type || 'pdf'}`
+    const resultado = exportFile(nome, response.data, {
+      mimeType: anexo.mime_type || response.data.type,
+    })
+    if (resultado !== true) throw resultado
+  } catch {
+    $q.notify({
+      type: 'negative',
+      message: 'Não foi possível baixar o documento. Tente novamente.',
+    })
+  } finally {
+    baixando.value = null
+  }
 }
 
 function abrirCadastro(motorista) {
@@ -313,83 +331,7 @@ function abrirCadastro(motorista) {
 }
 
 function aoAtualizar() {
-  dialog.visualizar = false
   buscar()
-}
-
-function reprovarDaVisualizacao() {
-  dialog.visualizar = false
-  dialog.reprovar = true
-}
-
-async function aprovarDaVisualizacao() {
-  const { motorista, documento } = selecionado
-  if (await aprovar(motorista, documento)) dialog.visualizar = false
-}
-
-async function aprovarUm(documento) {
-  const { data } = await api.put(`/mudar-status-documento/${documento.id}`, {
-    status: 'aprovado',
-  })
-  return data.message
-}
-
-async function aprovar(motorista, documento) {
-  if (ocupados.has(motorista.id)) return false
-  ocupados.add(motorista.id)
-  try {
-    const mensagem = await aprovarUm(documento)
-    $q.notify({ type: 'positive', position: 'top-right', message: mensagem })
-    await buscar()
-    return true
-  } catch (err) {
-    $q.notify({
-      type: 'negative',
-      message:
-        err.response?.data?.message ||
-        Object.values(err.response?.data?.errors || {})[0]?.[0] ||
-        'Não foi possível aprovar o documento.',
-    })
-    return false
-  } finally {
-    ocupados.delete(motorista.id)
-  }
-}
-
-function aprovarTodos(motorista, documentos) {
-  $q.dialog({
-    title: 'Aprovar documentos',
-    message: `Aprovar ${documentos.length} documentos de ${motorista.nome}? (${documentos
-      .map((documento) => documento.titulo)
-      .join(', ')})`,
-    cancel: { flat: true, label: 'Cancelar' },
-    ok: { label: 'Aprovar', color: 'positive', unelevated: true },
-    persistent: true,
-  }).onOk(async () => {
-    ocupados.add(motorista.id)
-    let aprovados = 0
-    const falhas = []
-    for (const documento of documentos) {
-      try {
-        await aprovarUm(documento)
-        aprovados++
-      } catch (err) {
-        falhas.push(`${documento.titulo}: ${err.response?.data?.message || 'falhou'}`)
-      }
-    }
-    ocupados.delete(motorista.id)
-    if (aprovados) {
-      $q.notify({
-        type: 'positive',
-        position: 'top-right',
-        message: `${aprovados} ${aprovados === 1 ? 'documento aprovado' : 'documentos aprovados'}.`,
-      })
-    }
-    if (falhas.length) {
-      $q.notify({ type: 'negative', multiLine: true, message: falhas.join('\n') })
-    }
-    await buscar()
-  })
 }
 
 // TEMPO REAL
