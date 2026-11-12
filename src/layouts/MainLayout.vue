@@ -77,6 +77,10 @@
               ><q-item-section avatar><q-icon name="category" /></q-item-section
               ><q-item-section>Categorias</q-item-section></q-item
             >
+            <q-item clickable to="/taxas-motoristas" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="speed" /></q-item-section
+              ><q-item-section>Taxas dos motoristas</q-item-section></q-item
+            >
             <q-item clickable to="/tarifas" class="q-pl-xl"
               ><q-item-section avatar><q-icon name="attach_money" /></q-item-section
               ><q-item-section>Tarifas</q-item-section></q-item

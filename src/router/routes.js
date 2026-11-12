@@ -114,6 +114,11 @@ const routes = [
         component: () => import('src/pages/PaginaProdutoCategorias.vue'),
       },
       {
+        path: 'taxas-motoristas',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/PaginaTaxasMotoristas.vue'),
+      },
+      {
         path: 'publicidades',
         meta: { permissao: 'configuracoes.gerenciar' },
         component: () => import('src/pages/midias/PaginaMidias.vue'),
