@@ -77,10 +77,30 @@
               ><q-item-section avatar><q-icon name="category" /></q-item-section
               ><q-item-section>Categorias</q-item-section></q-item
             >
-            <q-item clickable to="/taxas-motoristas" class="q-pl-xl"
-              ><q-item-section avatar><q-icon name="speed" /></q-item-section
-              ><q-item-section>Taxas dos motoristas</q-item-section></q-item
+            <q-expansion-item
+              icon="speed"
+              label="Taxas dos motoristas"
+              :header-inset-level="0.4"
+              :content-inset-level="0.6"
+              :default-opened="$route.path.startsWith('/taxas-motoristas')"
             >
+              <q-item clickable exact to="/taxas-motoristas" class="q-pl-xl"
+                ><q-item-section avatar><q-icon name="tune" /></q-item-section
+                ><q-item-section>Mínimos</q-item-section></q-item
+              >
+              <q-item clickable to="/taxas-motoristas/excecoes" class="q-pl-xl"
+                ><q-item-section avatar><q-icon name="rule" /></q-item-section
+                ><q-item-section>Exceções</q-item-section></q-item
+              >
+              <q-item clickable to="/taxas-motoristas/desempenho" class="q-pl-xl"
+                ><q-item-section avatar><q-icon name="leaderboard" /></q-item-section
+                ><q-item-section>Desempenho</q-item-section></q-item
+              >
+              <q-item clickable to="/taxas-motoristas/restricoes" class="q-pl-xl"
+                ><q-item-section avatar><q-icon name="block" /></q-item-section
+                ><q-item-section>Restrições</q-item-section></q-item
+              >
+            </q-expansion-item>
             <q-item clickable to="/tarifas" class="q-pl-xl"
               ><q-item-section avatar><q-icon name="attach_money" /></q-item-section
               ><q-item-section>Tarifas</q-item-section></q-item

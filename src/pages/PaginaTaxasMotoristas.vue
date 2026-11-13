@@ -74,11 +74,110 @@
           <q-card-section>
             <div class="text-h6 text-weight-bold">Taxa de aceitação</div>
             <p class="text-grey-7 q-mt-sm q-mb-none">
-              É a porcentagem de corridas aceitas em relação ao total recebido nos últimos 30 dias.
-              Inicia em 100% e é ajustada conforme o motorista aceita ou recusa os chamados. Recusas
-              de corridas duplicadas, canceladas pelo passageiro ou em áreas de risco não prejudicam
-              essa taxa.
+              É a porcentagem de chamadas aceitas em relação às que tocaram na tela do motorista no
+              mês. Inicia em 100% e cai a cada chamada recusada ou deixada tocar até o fim. Não
+              prejudicam essa taxa as chamadas duplicadas, as canceladas pelo passageiro logo depois
+              de tocar e as da categoria Negocia. Os limites de tempo ficam em Exceções.
             </p>
+          </q-card-section>
+        </q-card>
+      </div>
+
+      <div class="col-12">
+        <q-card flat bordered class="cartao">
+          <q-card-section>
+            <div class="text-h6 text-weight-bold">Restrições por taxa de finalização baixa</div>
+            <p class="text-grey-7 q-mt-sm">
+              O motorista com a finalização abaixo da mínima recebe um alerta, com prazo até o dia
+              limite do mês (segunda semana) para recuperar a taxa. Se o prazo vence e a taxa
+              continua baixa, ele fica sem fazer corridas por alguns dias. A cada mês seguinte sem
+              recuperar a restrição aumenta, e recuperar no meio do caminho volta ao primeiro
+              degrau. No máximo uma restrição automática por mês.
+            </p>
+
+            <q-toggle
+              v-model="restricao.ativas"
+              :disable="salvandoRestricao"
+              label="Aplicar as restrições (desligado = modo sombra)"
+            />
+            <div class="text-caption text-grey-7 q-mb-md">
+              No modo sombra as restrições só são registradas, como “Simuladas”: ninguém é bloqueado
+              nem recebe aviso. Use para conferir quem seria restrito antes de ligar.
+            </div>
+
+            <div class="row q-col-gutter-md">
+              <div class="col-12 col-sm-6 col-md-3">
+                <q-input
+                  v-model.number="restricao.prazo_dia"
+                  type="number"
+                  outlined
+                  label="Prazo para recuperar"
+                  prefix="até o dia"
+                  min="1"
+                  max="28"
+                  :rules="[intervalo(1, 28)]"
+                  :disable="salvandoRestricao"
+                  :hint="`Padrão ${restricaoPadrao.prazo_dia}`"
+                />
+              </div>
+              <div class="col-12 col-sm-6 col-md-3">
+                <q-input
+                  v-model.number="restricao.antecedencia"
+                  type="number"
+                  outlined
+                  label="Antecedência mínima"
+                  suffix="dias"
+                  min="0"
+                  max="14"
+                  :rules="[intervalo(0, 14)]"
+                  :disable="salvandoRestricao"
+                  :hint="`Com menos dias que isso até o prazo, vale o do mês seguinte. Padrão ${restricaoPadrao.antecedencia}`"
+                />
+              </div>
+              <div class="col-12 col-sm-6 col-md-3">
+                <q-input
+                  v-model.number="restricao.minimo_corridas"
+                  type="number"
+                  outlined
+                  label="Mínimo de corridas"
+                  suffix="corridas"
+                  min="1"
+                  max="1000"
+                  :rules="[intervalo(1, 1000)]"
+                  :disable="salvandoRestricao"
+                  :hint="`Corridas encerradas nos últimos 30 dias antes de a taxa valer. Padrão ${restricaoPadrao.minimo_corridas}`"
+                />
+              </div>
+              <div class="col-12 col-sm-6 col-md-3">
+                <q-input
+                  v-model="restricao.duracoes"
+                  outlined
+                  label="Duração por degrau"
+                  suffix="dias"
+                  :rules="[regraDuracoes]"
+                  :disable="salvandoRestricao"
+                  :hint="`1ª, 2ª, 3ª restrição...; depois alterna entre as duas últimas. Padrão ${restricaoPadrao.duracoes}`"
+                />
+              </div>
+            </div>
+
+            <div class="row q-gutter-sm q-mt-md">
+              <q-btn
+                color="primary"
+                no-caps
+                label="Salvar restrições"
+                :loading="salvandoRestricao"
+                :disable="!restricaoAlterada || !restricaoValida"
+                @click="salvarRestricao"
+              />
+              <q-btn
+                flat
+                no-caps
+                label="Restaurar padrão"
+                :disable="salvandoRestricao"
+                @click="restaurarRestricao"
+              />
+            </div>
           </q-card-section>
         </q-card>
       </div>
@@ -87,7 +186,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 
@@ -105,10 +204,86 @@ const regras = [
     (Number.isInteger(valor) && valor >= 0 && valor <= 100) || 'Informe um inteiro de 0 a 100',
 ]
 
+const salvandoRestricao = ref(false)
+const restricao = reactive({
+  ativas: false,
+  prazo_dia: 14,
+  antecedencia: 3,
+  minimo_corridas: 10,
+  duracoes: '5,10,15',
+})
+const restricaoSalva = reactive({ ...restricao })
+const restricaoPadrao = reactive({ ...restricao })
+
+const restricaoAlterada = computed(() =>
+  Object.keys(restricao).some((campo) => restricao[campo] !== restricaoSalva[campo]),
+)
+const intervalo = (minimo, maximo) => (valor) =>
+  (Number.isInteger(valor) && valor >= minimo && valor <= maximo) ||
+  `Informe um inteiro de ${minimo} a ${maximo}`
+const regraDuracoes = (valor) =>
+  /^[1-9]\d{0,2}(,[1-9]\d{0,2}){0,5}$/.test(valor || '') ||
+  'Use dias separados por vírgula: 5,10,15'
+const restricaoValida = computed(
+  () =>
+    intervalo(1, 28)(restricao.prazo_dia) === true &&
+    intervalo(0, 14)(restricao.antecedencia) === true &&
+    intervalo(1, 1000)(restricao.minimo_corridas) === true &&
+    regraDuracoes(restricao.duracoes) === true,
+)
+
 function aplicar(dados) {
   salva.value = dados.taxa_finalizacao_minima
   minima.value = dados.taxa_finalizacao_minima
   padrao.value = dados.taxa_finalizacao_minima_padrao
+
+  const doServidor = {
+    ativas: dados.restricoes_taxa_ativas,
+    prazo_dia: dados.restricao_prazo_dia,
+    antecedencia: dados.restricao_antecedencia_dias,
+    minimo_corridas: dados.restricao_minimo_corridas,
+    duracoes: dados.restricao_duracoes_dias,
+  }
+  Object.assign(restricao, doServidor)
+  Object.assign(restricaoSalva, doServidor)
+  Object.assign(restricaoPadrao, {
+    prazo_dia: dados.restricao_prazo_dia_padrao,
+    antecedencia: dados.restricao_antecedencia_dias_padrao,
+    minimo_corridas: dados.restricao_minimo_corridas_padrao,
+    duracoes: dados.restricao_duracoes_dias_padrao,
+  })
+}
+
+function restaurarRestricao() {
+  Object.assign(restricao, {
+    prazo_dia: restricaoPadrao.prazo_dia,
+    antecedencia: restricaoPadrao.antecedencia,
+    minimo_corridas: restricaoPadrao.minimo_corridas,
+    duracoes: restricaoPadrao.duracoes,
+  })
+}
+
+async function salvarRestricao() {
+  if (!restricaoValida.value) return
+  salvandoRestricao.value = true
+  try {
+    const { data } = await api.put('/configuracoes', {
+      restricoes_taxa_ativas: restricao.ativas,
+      restricao_prazo_dia: restricao.prazo_dia,
+      restricao_antecedencia_dias: restricao.antecedencia,
+      restricao_minimo_corridas: restricao.minimo_corridas,
+      restricao_duracoes_dias: restricao.duracoes,
+    })
+    aplicar(data)
+    $q.notify({ type: 'positive', message: 'Regras de restrição salvas.' })
+  } catch (e) {
+    $q.notify({
+      type: 'negative',
+      message: e.response?.data?.message || 'Não foi possível salvar.',
+    })
+  } finally {
+    salvandoRestricao.value = false
+  }
 }
 
 async function carregar() {

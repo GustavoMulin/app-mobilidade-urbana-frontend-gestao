@@ -119,6 +119,21 @@ const routes = [
         component: () => import('src/pages/PaginaTaxasMotoristas.vue'),
       },
       {
+        path: 'taxas-motoristas/excecoes',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/taxas/PaginaTaxasExcecoes.vue'),
+      },
+      {
+        path: 'taxas-motoristas/desempenho',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/taxas/PaginaTaxasDesempenho.vue'),
+      },
+      {
+        path: 'taxas-motoristas/restricoes',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/taxas/PaginaTaxasRestricoes.vue'),
+      },
+      {
         path: 'publicidades',
         meta: { permissao: 'configuracoes.gerenciar' },
         component: () => import('src/pages/midias/PaginaMidias.vue'),
