@@ -61,6 +61,12 @@ const routes = [
       },
 
       {
+        path: 'aprovacao-documentos',
+        meta: { permissao: 'documentos.consultar' },
+        component: () => import('src/pages/documentos/PaginaAprovacaoDocumentos.vue'),
+      },
+
+      {
         path: 'passageiros',
         meta: { permissao: 'usuarios.consultar' },
         component: () => import('src/pages/usuarios/PaginaPassageiros.vue'),
@@ -89,6 +95,11 @@ const routes = [
         meta: { permissao: 'configuracoes.gerenciar' },
         component: () => import('src/pages/PaginaTarifas.vue'),
       },
+      {
+        path: 'avaliacoes',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/avaliacoes/PaginaAvaliacoes.vue'),
+      },
 
       {
         path: 'produtos-corridas',
@@ -100,6 +111,26 @@ const routes = [
         path: 'produto-categorias',
         meta: { permissao: 'configuracoes.gerenciar' },
         component: () => import('src/pages/PaginaProdutoCategorias.vue'),
+      },
+      {
+        path: 'taxas-motoristas',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/PaginaTaxasMotoristas.vue'),
+      },
+      {
+        path: 'taxas-motoristas/excecoes',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/taxas/PaginaTaxasExcecoes.vue'),
+      },
+      {
+        path: 'taxas-motoristas/desempenho',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/taxas/PaginaTaxasDesempenho.vue'),
+      },
+      {
+        path: 'taxas-motoristas/restricoes',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/taxas/PaginaTaxasRestricoes.vue'),
       },
       {
         path: 'publicidades',
