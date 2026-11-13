@@ -31,6 +31,7 @@ Toda conta nova começa em **100%** nas duas taxas, que são recalculadas a cada
 - `GET /api/gestao/taxas-motoristas/{motorista}/eventos?taxa=aceitacao|finalizacao&somente_desconsiderados=1`
 - `GET /api/motorista/me/estatisticas` (app): `taxa_aceitacao`, `taxa_finalizacao`, `taxa_finalizacao_minima` e as contagens.
 - `GET /api/motorista/me/taxa-finalizacao` (tela Taxa de Finalização do app): período dos últimos 30 dias, `taxa`, `minima`, `finalizadas`, `canceladas`, a série `diario` (taxa e contagens por dia, `taxa: null` sem corridas), o `historico` (taxa de cada janela de 30 dias que terminou nos últimos 30 dias), `situacao_taxa` e as `regras` (`prazo_dia`, `duracoes_dias`). A janela de 30 dias conta hoje e vai de dia inteiro a dia inteiro (14/10 a 12/11).
+- `GET /api/motorista/me/taxa-aceitacao` (tela Taxa de Aceitação do app): período do mês corrente (de 1º até hoje), `taxa`, `aceitas`, `recusadas`, a série `diario` dos últimos 30 dias (`taxa: null` sem chamadas), o `historico` dos últimos 6 meses (taxa e contagens de cada mês, o corrente parcial) e as `regras` configuráveis que o app cita nos textos (`cancelamento_passageiro_segundos`, `duplicada_janela_minutos`). Só entram os eventos que pesam: duplicadas, Negocia e cancelamento do passageiro em até o tempo configurado ficam de fora.
 
 ## Dados e rotinas (backend)
 
