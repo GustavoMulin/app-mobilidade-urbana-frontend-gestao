@@ -101,6 +101,11 @@ const routes = [
         meta: { permissao: 'configuracoes.gerenciar' },
         component: () => import('src/pages/PaginaTarifas.vue'),
       },
+      {
+        path: 'avaliacoes',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/avaliacoes/PaginaAvaliacoes.vue'),
+      },
 
       {
         path: 'produtos-corridas',

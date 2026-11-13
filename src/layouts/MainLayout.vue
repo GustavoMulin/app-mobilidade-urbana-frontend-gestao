@@ -105,6 +105,10 @@
               ><q-item-section avatar><q-icon name="attach_money" /></q-item-section
               ><q-item-section>Tarifas</q-item-section></q-item
             >
+            <q-item clickable to="/avaliacoes" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="star" /></q-item-section
+              ><q-item-section>Avaliações</q-item-section></q-item
+            >
           </q-expansion-item>
           <q-expansion-item
             v-if="pode('regras.gerenciar')"
