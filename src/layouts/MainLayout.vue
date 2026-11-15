@@ -109,6 +109,14 @@
               ><q-item-section avatar><q-icon name="star" /></q-item-section
               ><q-item-section>Avaliações</q-item-section></q-item
             >
+            <q-item clickable to="/avaliacoes/selos" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="workspace_premium" /></q-item-section
+              ><q-item-section>Selos de avaliação</q-item-section></q-item
+            >
+            <q-item clickable to="/avaliacoes/dicas" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="tips_and_updates" /></q-item-section
+              ><q-item-section>Dicas ao motorista</q-item-section></q-item
+            >
           </q-expansion-item>
           <q-expansion-item
             v-if="pode('regras.gerenciar')"

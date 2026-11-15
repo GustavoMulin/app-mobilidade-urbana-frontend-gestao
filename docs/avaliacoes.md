@@ -59,13 +59,38 @@ Ainda não existe uma tela para listar alertas e penalidades por nota na gestão
 
 ## Elogios
 
-O passageiro pode marcar elogios ao avaliar o motorista: bom condutor, sabe o caminho, veículo limpo, pontual, educado e simpático (`elogios` em `POST /api/avaliacoes-corridas`). O motorista não elogia o passageiro: o campo é ignorado.
+Ao avaliar, cada lado pode escolher **selos** (elogios) e, só o passageiro, escrever um comentário. Os selos são gerenciados na gestão, em **Configurações → Selos de avaliação** (`/avaliacoes/selos`).
+
+- **Quem recebe:** `perfil_alvo` diz quem recebe o selo. Os selos do **motorista** são escolhidos pelo passageiro; os do **passageiro**, pelo motorista.
+- **Selos do motorista (iniciais):** Carro limpo e confortável, Ótimo atendimento, Superou as expectativas, Boa rota, Ótimo papo, Ótimas cortesias, Herói da noite, Música excelente e Respeitoso.
+- **Selos do passageiro (iniciais):** Pontual no embarque, Educado e respeitoso, Boa comunicação, Endereço certo, Cuidou do veículo, Ótimo papo, Viagem tranquila e Pagamento sem complicação.
+- **Imagem:** cada selo pode ter uma imagem. Os apps usam, nesta ordem: a **imagem enviada** na gestão (PNG, JPG ou WebP, até 3 MB, guardada em `public/images/selos`), a **URL** cadastrada (`imagem_url`, só http ou https) e, sem as duas, o **emoji** (`icone`, padrão ⭐). Remover a imagem enviada devolve a prioridade para a URL.
+- **Campos:** texto, descrição, imagem, URL, emoji, ordem e ativo podem mudar; a chave e quem recebe não mudam (o histórico aponta para a chave). Em `GET /api/selos-avaliacao`, no perfil do motorista e na lista de bloqueados, o campo `imagem` já vem resolvido (endereço completo, montado com o host que o app usou) ou `null`.
+- **Adesivos iniciais:** `php artisan selos:importar-adesivos` coloca os PNG de `database/assets/adesivos` como imagem dos selos do motorista (Ótimo atendimento, Boa rota, Carro limpo e confortável, Ótimo papo, Respeitoso) e cria o **Cuidadoso no trânsito**. Pode rodar de novo: não troca imagem que já existe (use `--forcar`).
+- **Desativar ou excluir:** selo desativado some da lista dos apps, mas continua aparecendo no perfil de quem já o recebeu. Selo já recebido em alguma avaliação não pode ser excluído, só desativado.
+- **Nos apps:** os selos só são oferecidos para notas 4 e 5. A lista vem de `GET /api/selos-avaliacao?perfil=motorista|passageiro` (quem vai receber). Enviar o selo é `elogios` (lista de chaves) em `POST /api/avaliacoes-corridas`; chave que não existe ou está desativada recusa a avaliação.
+- **Comentário:** só o passageiro escreve. O comentário enviado pelo motorista é descartado.
+- **API da gestão (`configuracoes.gerenciar`):** `GET/POST /api/gestao/selos-avaliacao`, `PUT/DELETE /api/gestao/selos-avaliacao/{id}`. Com arquivo, envie `multipart/form-data` (`imagem`, `imagem_url`, `remover_imagem`); para editar com arquivo use `POST` com `_method=PUT`.
+
+## Dicas para ter mais avaliações positivas
+
+Seção "Como ter mais avaliações positivas?" do perfil do motorista, gerenciada em **Configurações → Dicas ao motorista** (`/avaliacoes/dicas`): título, texto, ordem e ativa. O app só mostra as ativas, na ordem (`dicas` em `GET /api/motorista/me/perfil`). `GET/POST /api/gestao/dicas-avaliacao`, `PUT/DELETE /api/gestao/dicas-avaliacao/{id}`.
+
+## Bloqueio entre motorista e passageiro
+
+Na tela de avaliação, depois da corrida finalizada, cada lado vê **Bloquear usuário** (com confirmação).
+
+- **Motorista bloqueia passageiro:** o motorista não recebe mais as chamadas dele (nem aceita ou propõe).
+- **Passageiro bloqueia motorista:** os pedidos desse passageiro não tocam mais para o motorista.
+- **Vale nos dois sentidos:** se qualquer um bloqueou, os dois nunca são colocados na mesma corrida. A chamada bloqueada não entra na taxa de aceitação. Quem foi bloqueado não é avisado.
+- **Tela "Usuários bloqueados":** no menu lateral dos dois apps. Mostra o nome (primeiro nome), a data e o contexto da avaliação que quem bloqueou deu naquela corrida: estrelas, selos e comentário (se houver). Dá para desbloquear.
+- **API (apps):** `POST /api/bloqueios-usuarios` (`perfil`, `corrida_id`), `GET /api/bloqueios-usuarios?perfil=`, `DELETE /api/bloqueios-usuarios/{id}?perfil=`. Só quem participou da corrida finalizada bloqueia, e cada um só vê e desfaz os próprios bloqueios.
 
 ## Onde a nota aparece
 
 | Onde | Campos |
 |---|---|
-| Perfil do motorista no app (`GET /api/motorista/me/perfil`) | `nota`, `nota_base`, `avaliacoes`, `novo`, `janela_da_media`, `distribuicao`, `elogios`, `notas_agradecimento`, `selos`, `verificacoes` |
+| Perfil do motorista no app (`GET /api/motorista/me/perfil`) | `nota`, `nota_base`, `avaliacoes`, `novo`, `janela_da_media`, `distribuicao`, `elogios` (selos recebidos, vazio em conta nova), `dicas`, `notas_agradecimento`, `selos`, `verificacoes` |
 | Menu do motorista (`GET /api/motorista/me/estatisticas`) | `nota_motorista`, `avaliacoes_recebidas` |
 | Passageiro vê o motorista (`motorista_info` da corrida atual e propostas do Negocia) | `nota`, `corridas`, `novo` |
 | Motorista vê o passageiro (`passageiro` da corrida atual e ofertas) | `nota`, `corridas`, `novo` (`passageiro_nota`, `passageiro_corridas`, `passageiro_novo` nas ofertas) |
