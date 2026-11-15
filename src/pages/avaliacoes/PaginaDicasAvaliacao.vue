@@ -9,12 +9,17 @@
             Dicas para ter mais avaliações positivas
           </h1>
           <div class="text-grey-7 q-mt-xs">
-            As dicas que o motorista vê no perfil, em "Como ter mais avaliações positivas?".
+            As dicas que o motorista e o passageiro veem no perfil, em "Como ter mais avaliações positivas?".
           </div>
         </div>
         <q-btn color="primary" no-caps icon="add" label="Nova dica" @click="abrirNova" />
       </q-card-section>
     </q-card>
+
+    <q-tabs v-model="alvo" align="left" class="q-mb-md" active-color="primary" indicator-color="primary" no-caps>
+      <q-tab name="motorista" label="Dicas do motorista" />
+      <q-tab name="passageiro" label="Dicas do passageiro" />
+    </q-tabs>
 
     <div v-if="carregando" class="text-center q-pa-xl" role="status">
       <q-spinner color="primary" size="36px" />
@@ -26,7 +31,7 @@
 
     <q-card v-else flat bordered class="cartao">
       <q-list separator>
-        <q-item v-for="dica in dicas" :key="dica.id" :class="{ inativa: !dica.ativo }">
+        <q-item v-for="dica in dicasDoAlvo" :key="dica.id" :class="{ inativa: !dica.ativo }">
           <q-item-section>
             <q-item-label class="text-weight-medium">{{ dica.titulo }}</q-item-label>
             <q-item-label caption lines="3">{{ dica.texto }}</q-item-label>
@@ -51,7 +56,7 @@
             </div>
           </q-item-section>
         </q-item>
-        <q-item v-if="dicas.length === 0">
+        <q-item v-if="dicasDoAlvo.length === 0">
           <q-item-section class="text-grey-7">Nenhuma dica cadastrada.</q-item-section>
         </q-item>
       </q-list>
@@ -91,7 +96,7 @@
               max="999"
               hint="Menor aparece primeiro"
             />
-            <q-toggle v-model="form.ativo" label="Ativa (aparece no app do motorista)" />
+            <q-toggle v-model="form.ativo" :label="`Ativa (aparece no app do ${form.perfil_alvo})`" />
           </q-card-section>
           <q-card-actions align="right">
             <q-btn flat no-caps label="Cancelar" :disable="salvando" @click="dialogo = false" />
@@ -106,7 +111,7 @@
         <q-card-section>
           <div class="text-h6">Excluir dica?</div>
           <p class="q-mt-sm q-mb-none">
-            "{{ paraExcluir?.titulo }}" deixa de aparecer no app do motorista.
+            "{{ paraExcluir?.titulo }}" deixa de aparecer no app do {{ paraExcluir?.perfil_alvo || "motorista" }}.
           </p>
         </q-card-section>
         <q-card-actions align="right">
@@ -119,7 +124,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 
@@ -132,7 +137,9 @@ const salvando = ref(false)
 const confirmando = ref(false)
 const excluindo = ref(false)
 const paraExcluir = ref(null)
-const form = reactive({ id: null, titulo: '', texto: '', ordem: 0, ativo: true })
+const alvo = ref('motorista')
+const dicasDoAlvo = computed(() => dicas.value.filter((d) => (d.perfil_alvo || 'motorista') === alvo.value))
+const form = reactive({ id: null, perfil_alvo: 'motorista', titulo: '', texto: '', ordem: 0, ativo: true })
 
 const regra = (v) => (!!v && v.trim().length >= 2) || 'Preencha este campo (mínimo 2 letras)'
 
@@ -156,9 +163,10 @@ async function carregar() {
 function abrirNova() {
   Object.assign(form, {
     id: null,
+    perfil_alvo: alvo.value,
     titulo: '',
     texto: '',
-    ordem: Math.max(0, ...dicas.value.map((d) => d.ordem)) + 1,
+    ordem: Math.max(0, ...dicasDoAlvo.value.map((d) => d.ordem)) + 1,
     ativo: true,
   })
   dialogo.value = true
@@ -167,6 +175,7 @@ function abrirNova() {
 function abrirEdicao(dica) {
   Object.assign(form, {
     id: dica.id,
+    perfil_alvo: dica.perfil_alvo || 'motorista',
     titulo: dica.titulo,
     texto: dica.texto,
     ordem: dica.ordem,
@@ -179,6 +188,7 @@ async function salvar() {
   salvando.value = true
   try {
     const corpo = {
+      perfil_alvo: form.perfil_alvo,
       titulo: form.titulo.trim(),
       texto: form.texto.trim(),
       ordem: form.ordem,

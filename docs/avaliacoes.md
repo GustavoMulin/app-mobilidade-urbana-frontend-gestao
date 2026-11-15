@@ -98,7 +98,7 @@ Na tela de avaliação, depois da corrida finalizada, cada lado vê **Bloquear u
 
 ## Perfil do motorista
 
-- **Notas de agradecimento:** comentários de avaliações reais com nota 4 ou 5, com o primeiro nome de quem avaliou (`GET /api/motorista/me/notas-agradecimento`, paginado).
+- **Notas de agradecimento:** comentários de avaliações reais, de qualquer nota (não entram os vazios nem as notas automáticas), com o primeiro nome de quem avaliou e os selos que a mesma avaliação recebeu (`selos`, com ícone e imagem) (`GET /api/motorista/me/notas-agradecimento`, paginado).
 - **Selos:** de cada tipo vale só o maior nível já alcançado: corridas finalizadas (100, 500, 1000, 5000, 10000), avaliações de 5 estrelas (10, 50, 100, 500, 1000) e tempo na plataforma (6, 12, 24, 36 meses).
 - **Verificações:** antecedentes (documento "nada consta" aprovado), CNH, CRLV (veículo aprovado) e foto de perfil.
 
