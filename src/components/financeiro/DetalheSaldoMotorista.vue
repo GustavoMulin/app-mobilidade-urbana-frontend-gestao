@@ -363,4 +363,16 @@ const ajustes = [
     gap: 8px;
   }
 }
+/* modo escuro */
+.body--dark .resumo-movimento.entrada {
+  background: rgba(33, 186, 69, 0.15);
+  color: #81c995;
+}
+.body--dark .resumo-movimento.saida {
+  background: rgba(193, 0, 21, 0.18);
+  color: #f28b82;
+}
+.body--dark .linha span {
+  color: #94a3b8;
+}
 </style>

@@ -20,6 +20,17 @@
           <q-btn round dense flat color="grey-8" icon="message" v-if="$q.screen.gt.sm">
             <q-tooltip>Messages</q-tooltip>
           </q-btn>
+          <q-btn
+            round
+            dense
+            flat
+            color="grey-8"
+            :icon="$q.dark.isActive ? 'light_mode' : 'dark_mode'"
+            :aria-label="$q.dark.isActive ? 'Usar o modo claro' : 'Usar o modo escuro'"
+            @click="alternarTema"
+          >
+            <q-tooltip>{{ $q.dark.isActive ? 'Modo claro' : 'Modo escuro' }}</q-tooltip>
+          </q-btn>
           <q-btn round dense flat color="grey-8" icon="notifications">
             <q-badge color="red" text-color="white" floating> 2 </q-badge>
             <q-tooltip>Notifications</q-tooltip>
@@ -147,6 +158,8 @@
 <script>
 import { fabYoutube } from '@quasar/extras/fontawesome-v6'
 import { useAuthStore } from 'src/stores/auth'
+import { salvarTema } from 'src/utils/tema'
+import { useQuasar } from 'quasar'
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 export default {
@@ -158,6 +171,14 @@ export default {
 
     function toggleLeftDrawer() {
       leftDrawerOpen.value = !leftDrawerOpen.value
+    }
+
+    const $q = useQuasar()
+
+    // claro ou escuro; a escolha fica salva no navegador (ver src/utils/tema.js)
+    function alternarTema() {
+      $q.dark.toggle()
+      salvarTema($q.dark.isActive)
     }
 
     const authStore = useAuthStore()
@@ -180,6 +201,7 @@ export default {
 
     return {
       user,
+      alternarTema,
       pode: authStore.pode,
       saindo,
       logout,

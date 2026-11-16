@@ -89,6 +89,7 @@
                 :y1="y(marca)"
                 :x2="largura"
                 :y2="y(marca)"
+                :class="{ grade: marca !== 0 }"
                 :stroke="marca === 0 ? '#94a3b8' : '#e2e8f0'"
                 :stroke-dasharray="marca === 0 ? undefined : '4 4'"
               />
@@ -113,6 +114,7 @@
                 :width="passo - 4"
                 :height="altura - 18"
                 rx="8"
+                :class="{ 'coluna-ativa': ativo === indice }"
                 :fill="ativo === indice ? '#eff6ff' : 'transparent'"
               />
               <rect
@@ -142,6 +144,7 @@
                     : y(centavos(ponto.valor)) - 12
                 "
                 text-anchor="middle"
+                :class="{ 'valor-escuro': centavos(ponto.valor) >= 0 }"
                 :fill="centavos(ponto.valor) < 0 ? '#b4232c' : '#1e293b'"
                 font-size="12"
                 font-weight="600"
@@ -152,6 +155,7 @@
                 :x="indice * passo + passo / 2"
                 y="292"
                 text-anchor="middle"
+                class="rotulo-data"
                 fill="#334155"
                 font-size="12"
                 font-weight="500"
@@ -500,5 +504,40 @@ figure {
     transform: translateX(-16px);
     font-size: 10px;
   }
+}
+/* modo escuro: o CSS vence a cor escrita no SVG */
+.body--dark .periodo-grafico {
+  color: #cbd5e1;
+}
+.body--dark .indicadores-grafico > div,
+.body--dark figure,
+.body--dark .detalhe-intervalo {
+  border-color: #334155;
+}
+.body--dark .indicadores-grafico span,
+.body--dark .indicadores-grafico small,
+.body--dark .legenda-grafico {
+  color: #94a3b8;
+}
+.body--dark .indicadores-grafico strong {
+  color: #f1f5f9;
+}
+.body--dark .legenda-grafico {
+  border-top-color: #334155;
+}
+.body--dark .detalhe-intervalo {
+  background: #1e293b;
+}
+.body--dark .rotulo-data {
+  fill: #cbd5e1;
+}
+.body--dark .valor-escuro {
+  fill: #e2e8f0;
+}
+.body--dark .coluna-ativa {
+  fill: rgba(25, 118, 210, 0.2);
+}
+.body--dark .grade {
+  stroke: #334155;
 }
 </style>
