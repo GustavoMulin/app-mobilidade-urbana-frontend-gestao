@@ -116,10 +116,26 @@
               ><q-item-section avatar><q-icon name="attach_money" /></q-item-section
               ><q-item-section>Tarifas</q-item-section></q-item
             >
-            <q-item clickable to="/avaliacoes" class="q-pl-xl"
-              ><q-item-section avatar><q-icon name="star" /></q-item-section
-              ><q-item-section>Avaliações</q-item-section></q-item
+            <q-expansion-item
+              icon="star"
+              label="Avaliações"
+              :header-inset-level="0.4"
+              :content-inset-level="0.6"
+              :default-opened="$route.path.startsWith('/avaliacoes')"
             >
+              <q-item clickable exact to="/avaliacoes" class="q-pl-xl"
+                ><q-item-section avatar><q-icon name="tune" /></q-item-section
+                ><q-item-section>Nota e faixas</q-item-section></q-item
+              >
+              <q-item clickable to="/avaliacoes/selos" class="q-pl-xl"
+                ><q-item-section avatar><q-icon name="military_tech" /></q-item-section
+                ><q-item-section>Selos</q-item-section></q-item
+              >
+              <q-item clickable to="/avaliacoes/dicas" class="q-pl-xl"
+                ><q-item-section avatar><q-icon name="lightbulb" /></q-item-section
+                ><q-item-section>Dicas</q-item-section></q-item
+              >
+            </q-expansion-item>
             <q-item clickable to="/cidades" class="q-pl-xl"
               ><q-item-section avatar><q-icon name="location_city" /></q-item-section
               ><q-item-section>Cidades</q-item-section></q-item
