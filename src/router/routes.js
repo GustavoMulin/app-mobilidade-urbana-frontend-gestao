@@ -123,6 +123,11 @@ const routes = [
         component: () => import('src/pages/PaginaProdutoCategorias.vue'),
       },
       {
+        path: 'gorjeta',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/PaginaGorjeta.vue'),
+      },
+      {
         path: 'taxas-motoristas',
         meta: { permissao: 'configuracoes.gerenciar' },
         component: () => import('src/pages/PaginaTaxasMotoristas.vue'),

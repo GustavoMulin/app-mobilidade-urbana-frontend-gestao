@@ -112,6 +112,10 @@
                 ><q-item-section>Restrições</q-item-section></q-item
               >
             </q-expansion-item>
+            <q-item clickable to="/gorjeta" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="volunteer_activism" /></q-item-section
+              ><q-item-section>Gorjeta</q-item-section></q-item
+            >
             <q-item clickable to="/tarifas" class="q-pl-xl"
               ><q-item-section avatar><q-icon name="attach_money" /></q-item-section
               ><q-item-section>Tarifas</q-item-section></q-item
