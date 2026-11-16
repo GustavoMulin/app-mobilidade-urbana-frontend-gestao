@@ -100,6 +100,16 @@ const routes = [
         meta: { permissao: 'configuracoes.gerenciar' },
         component: () => import('src/pages/avaliacoes/PaginaAvaliacoes.vue'),
       },
+      {
+        path: 'avaliacoes/selos',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/avaliacoes/PaginaSelosAvaliacao.vue'),
+      },
+      {
+        path: 'avaliacoes/dicas',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/avaliacoes/PaginaDicasAvaliacao.vue'),
+      },
 
       {
         path: 'produtos-corridas',

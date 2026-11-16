@@ -97,6 +97,8 @@ export default defineConfig((/* ctx */) => {
     devServer: {
       // https: true,
       port: 8081, // A porta 8080 pertence ao WebSocket do Laravel Reverb.
+      // portas fixas: gestão 8081, motorista 8082, passageiro 8083. Ocupada = erro, nunca outra porta.
+      strictPort: true,
       open: true, // opens browser window automatically
     },
 
