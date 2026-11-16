@@ -476,4 +476,8 @@ const dia = (valor) => new Intl.DateTimeFormat('pt-BR').format(new Date(valor + 
     margin-left: 64px;
   }
 }
+/* modo escuro */
+.body--dark .operacao-ativa {
+  background: rgba(25, 118, 210, 0.2);
+}
 </style>

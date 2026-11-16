@@ -115,6 +115,7 @@
 import { reactive, computed, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+import { semAcento } from 'src/utils/texto'
 
 // PROPS
 const props = defineProps({
@@ -144,14 +145,8 @@ const cidades = ref([])
 const cidadesFiltradas = ref([])
 const carregandoCidades = ref(false)
 
-const semAcento = (texto) =>
-  texto
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-
 function filtrarCidades(busca, update) {
-  const termo = semAcento(busca.trim())
+  const termo = semAcento(busca)
   update(() => {
     cidadesFiltradas.value = termo
       ? cidades.value.filter((cidade) => semAcento(cidade.label).includes(termo))
