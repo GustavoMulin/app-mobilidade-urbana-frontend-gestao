@@ -109,6 +109,10 @@
               ><q-item-section avatar><q-icon name="star" /></q-item-section
               ><q-item-section>Avaliações</q-item-section></q-item
             >
+            <q-item clickable to="/cidades" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="location_city" /></q-item-section
+              ><q-item-section>Cidades</q-item-section></q-item
+            >
           </q-expansion-item>
           <q-expansion-item
             v-if="pode('regras.gerenciar')"

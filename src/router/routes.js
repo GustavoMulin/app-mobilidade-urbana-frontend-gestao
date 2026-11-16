@@ -137,6 +137,11 @@ const routes = [
         meta: { permissao: 'configuracoes.gerenciar' },
         component: () => import('src/pages/midias/PaginaMidias.vue'),
       },
+      {
+        path: 'cidades',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/PaginaCidades.vue'),
+      },
     ],
   },
 
