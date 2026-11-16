@@ -327,4 +327,20 @@ const duracao = computed(() => {
 .marcador.destino {
   background: #f44336;
 }
+/* modo escuro */
+.body--dark .resumo-ganhos {
+  background: rgba(25, 118, 210, 0.15);
+  color: #90caf9;
+  border-color: rgba(144, 202, 249, 0.25);
+}
+.body--dark .linha > span {
+  color: #94a3b8;
+}
+.body--dark .total > span,
+.body--dark .total > strong {
+  color: #e2e8f0;
+}
+.body--dark .ponto-trajeto:not(:last-child)::before {
+  background: #334155;
+}
 </style>

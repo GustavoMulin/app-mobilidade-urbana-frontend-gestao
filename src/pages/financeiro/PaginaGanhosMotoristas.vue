@@ -484,4 +484,8 @@ const kpis = computed(() =>
     padding: 12px;
   }
 }
+/* modo escuro */
+.body--dark .linha-valor span {
+  color: #94a3b8;
+}
 </style>

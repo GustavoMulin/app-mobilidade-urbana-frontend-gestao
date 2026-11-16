@@ -297,4 +297,8 @@ const registro = computed(
     height: calc(100dvh - 190px);
   }
 }
+/* modo escuro */
+.body--dark .movimento-ativo {
+  background: rgba(25, 118, 210, 0.2);
+}
 </style>
