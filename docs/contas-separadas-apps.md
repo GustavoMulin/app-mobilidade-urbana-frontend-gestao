@@ -67,6 +67,10 @@ A tabela `cidades` tem todos os 5.570 municípios do IBGE, e a tabela `estados`,
 - **Cidades que já existiam:** mantiveram o `id`, porque tarifas, banners e corridas apontam para elas.
 - **Coluna `uf`:** a sigla continua em `cidades.uf`. Ao criar ou editar uma cidade pela sigla, o `uf_id` é preenchido sozinho.
 - **Seeder:** as cidades saíram do `DemonstracaoCompletaSeeder`.
+- **Gestão:** em **Configurações → Cidades** (`/cidades`, permissão `configuracoes.gerenciar`) dá para listar, buscar pelo nome ou código IBGE, filtrar por UF, cadastrar, editar e excluir. Isso serve para município novo ou correção de nome.
+  - O código IBGE é único.
+  - Uma cidade com banner ou tarifa própria não pode ser excluída (409).
+  - Excluir deixa sem cidade os motoristas e corridas que apontavam para ela.
 - **Origem dos dados:** o dump `brasil.sql`, tabelas `municipio` e `uf`.
   - Nele, as palavras que começam com "d" estavam em minúscula ("São domingos", "dom Eliseu"). O mesmo valia para "D'oeste", "Pio Xii" e " E ".
   - 187 nomes foram corrigidos.
