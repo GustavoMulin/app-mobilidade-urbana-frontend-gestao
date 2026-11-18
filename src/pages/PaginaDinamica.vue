@@ -41,6 +41,28 @@
         </div>
 
         <div class="row q-col-gutter-md q-mt-sm">
+          <div class="col-12">
+            <q-select
+              v-model="simulacao.cenario"
+              outlined
+              dense
+              clearable
+              emit-value
+              map-options
+              label="Cenário de despacho (opcional)"
+              :options="cenarios"
+              option-value="chave"
+              option-label="nome"
+              :disable="simulacao.rodando"
+              @update:model-value="aplicarCenario"
+            />
+            <div v-if="cenarioEscolhido" class="text-caption text-grey-7 q-mt-xs">
+              {{ cenarioEscolhido.descricao }} · {{ cenarioEscolhido.concorrentes }} concorrentes
+              por perto, {{ cenarioEscolhido.aceitacao_concorrentes }}% aceitam a chamada que
+              recebem. As regras da fila (tempo, descanso, pesos) ficam em
+              <router-link to="/despacho">Despacho de chamadas</router-link>.
+            </div>
+          </div>
           <div class="col-6 col-md-2">
             <q-input
               v-model.number="simulacao.quantidade"
@@ -1087,6 +1109,7 @@ const simulacao = reactive({
   motoristasOnline: 400,
   focoPercentual: 35,
   vidaPedido: 2,
+  cenario: null,
   foco: null,
   opcoesDeFoco: [],
   rodando: false,
@@ -1097,6 +1120,23 @@ const simulacao = reactive({
   erro: '',
 })
 let temporizadorDaSimulacao = null
+
+// cenários de despacho: preenchem o ritmo da simulação e definem a concorrência do foco
+const cenarios = ref([])
+const cenarioEscolhido = computed(() => cenarios.value.find((c) => c.chave === simulacao.cenario))
+
+function aplicarCenario(chave) {
+  const cenario = cenarios.value.find((c) => c.chave === chave)
+  if (!cenario) return
+  simulacao.quantidade = cenario.quantidade
+  simulacao.focoPercentual = cenario.foco_percentual
+  simulacao.vidaPedido = cenario.vida_pedido_min
+}
+
+api
+  .get('/dinamica/simulacao/cenarios')
+  .then(({ data }) => (cenarios.value = data))
+  .catch(() => (cenarios.value = []))
 
 function filtrarMotoristas(texto, atualizar) {
   api
@@ -1142,6 +1182,7 @@ async function iniciarSimulacao() {
     await api.post('/dinamica/simulacao/iniciar', {
       motoristas_online: simulacao.motoristasOnline,
       motorista_foco_id: simulacao.foco?.id ?? null,
+      cenario: simulacao.cenario ?? null,
     })
     simulacao.rodando = true
     simulacao.rodadas = 0

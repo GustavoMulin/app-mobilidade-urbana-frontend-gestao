@@ -116,6 +116,10 @@
               ><q-item-section avatar><q-icon name="volunteer_activism" /></q-item-section
               ><q-item-section>Gorjeta</q-item-section></q-item
             >
+            <q-item clickable to="/despacho" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="alt_route" /></q-item-section
+              ><q-item-section>Despacho de chamadas</q-item-section></q-item
+            >
             <q-item clickable to="/dinamica" class="q-pl-xl"
               ><q-item-section avatar><q-icon name="local_fire_department" /></q-item-section
               ><q-item-section>Preço dinâmico</q-item-section></q-item

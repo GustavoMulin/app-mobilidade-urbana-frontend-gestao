@@ -128,6 +128,11 @@ const routes = [
         component: () => import('src/pages/PaginaDinamica.vue'),
       },
       {
+        path: 'despacho',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/PaginaDespacho.vue'),
+      },
+      {
         path: 'gorjeta',
         meta: { permissao: 'configuracoes.gerenciar' },
         component: () => import('src/pages/PaginaGorjeta.vue'),
