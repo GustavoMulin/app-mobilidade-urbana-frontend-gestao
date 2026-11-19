@@ -121,8 +121,7 @@ export const configuracoesDetalhes = {
     imagem: 'url',
     campos: [
       campo('titulo', 'Título'),
-      campo('cidade.nome', 'Cidade'),
-      campo('cidade_id', 'ID da cidade'),
+      campo('cidades', 'Cidades', 'cidades'),
       campo('name', 'Nome do arquivo'),
       campo('mime_type', 'Tipo do arquivo'),
       campo('size', 'Tamanho (bytes)'),
@@ -169,6 +168,10 @@ function formatarValor(valor, tipo) {
           .filter(valorPreenchido)
           .join('\n')
       : ''
+  if (tipo === 'cidades')
+    return Array.isArray(valor) && valor.length
+      ? valor.map((cidade) => `${cidade.nome}/${cidade.uf}`).join(', ')
+      : 'Nenhuma (o anúncio não aparece em cidade alguma)'
   if (tipo === 'lista') {
     if (Array.isArray(valor)) return valor.join(', ')
     try {

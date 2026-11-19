@@ -19,7 +19,8 @@
         :rows="usuarios.data"
         :columns="columns"
         row-key="id"
-        :pagination="pagination"
+        v-model:pagination="pagination"
+        :rows-per-page-options="[10, 25, 50]"
         :grid="grid"
         :loading="loading"
         @request="onRequest"
@@ -165,7 +166,8 @@ const registroVisualizado = ref(null)
 
 const pagination = ref({
   page: 1,
-  rowsPerPage: 5,
+  rowsPerPage: 10,
+  rowsNumber: 0,
 })
 
 const columns = [
@@ -223,7 +225,7 @@ const buscarDados = async (props) => {
 
     pagination.value.rowsNumber = data.total
     pagination.value.page = data.current_page
-    pagination.value.rowsPerPage = data.per_page === data.total ? 0 : data.per_page
+    pagination.value.rowsPerPage = data.per_page
   } catch (error) {
     console.error(error)
   } finally {
@@ -231,7 +233,6 @@ const buscarDados = async (props) => {
   }
 }
 const onRequest = async (props) => {
-  console.log(props, 'props')
   await buscarDados(props)
 }
 
