@@ -128,6 +128,14 @@
               ><q-item-section avatar><q-icon name="attach_money" /></q-item-section
               ><q-item-section>Tarifas</q-item-section></q-item
             >
+            <q-item clickable to="/cupons" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="confirmation_number" /></q-item-section
+              ><q-item-section>Cupons</q-item-section></q-item
+            >
+            <q-item clickable to="/avatares" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="face" /></q-item-section
+              ><q-item-section>Avatares</q-item-section></q-item
+            >
             <q-expansion-item
               icon="star"
               label="Avaliações"
