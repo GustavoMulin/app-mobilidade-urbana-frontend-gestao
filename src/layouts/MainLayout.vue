@@ -116,6 +116,10 @@
               ><q-item-section avatar><q-icon name="volunteer_activism" /></q-item-section
               ><q-item-section>Gorjeta</q-item-section></q-item
             >
+            <q-item clickable to="/despacho" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="alt_route" /></q-item-section
+              ><q-item-section>Despacho de chamadas</q-item-section></q-item
+            >
             <q-item clickable to="/dinamica" class="q-pl-xl"
               ><q-item-section avatar><q-icon name="local_fire_department" /></q-item-section
               ><q-item-section>Preço dinâmico</q-item-section></q-item
@@ -123,6 +127,14 @@
             <q-item clickable to="/tarifas" class="q-pl-xl"
               ><q-item-section avatar><q-icon name="attach_money" /></q-item-section
               ><q-item-section>Tarifas</q-item-section></q-item
+            >
+            <q-item clickable to="/cupons" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="confirmation_number" /></q-item-section
+              ><q-item-section>Cupons</q-item-section></q-item
+            >
+            <q-item clickable to="/avatares" class="q-pl-xl"
+              ><q-item-section avatar><q-icon name="face" /></q-item-section
+              ><q-item-section>Avatares</q-item-section></q-item
             >
             <q-expansion-item
               icon="star"

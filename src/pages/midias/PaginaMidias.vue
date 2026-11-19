@@ -1,6 +1,7 @@
 <template>
   <q-page class="q-pa-md">
-    <CriarMidia @updated="onRequest" v-model="dialog.cadastrar" />
+    <CriarMidia @updated="aoCriar" v-model="dialog.cadastrar" />
+    <CidadesMidia v-model="dialog.cidades" :banner="bannerDasCidades" @updated="request" />
     <VisualizarRegistro v-model="dialog.visualizar" tipo="midia" :registro="registroVisualizado" />
     <q-card>
       <q-table
@@ -61,8 +62,21 @@
               {{ props.row.titulo }}
             </q-td>
 
-            <q-td key="cidade">
-              {{ props.row.cidade ? `${props.row.cidade.nome}/${props.row.cidade.uf}` : '—' }}
+            <q-td key="cidades">
+              <span v-if="!props.row.cidades?.length" class="text-grey-6">Nenhuma</span>
+              <template v-else>
+                <q-chip
+                  v-for="cidade in props.row.cidades.slice(0, 2)"
+                  :key="cidade.id"
+                  dense
+                  size="sm"
+                >
+                  {{ cidade.nome }}/{{ cidade.uf }}
+                </q-chip>
+                <q-chip v-if="props.row.cidades.length > 2" dense size="sm" outline>
+                  +{{ props.row.cidades.length - 2 }}
+                </q-chip>
+              </template>
             </q-td>
 
             <q-td key="imagem">
@@ -84,6 +98,19 @@
                 <template v-slot:loading>
                   <q-spinner-hourglass />
                 </template>
+              </q-btn>
+
+              <q-btn
+                v-if="dominio === 'publicidades'"
+                @click="abrirCidades(props.row)"
+                dense
+                flat
+                icon="location_city"
+                aria-label="Escolher as cidades do anúncio"
+              >
+                <q-tooltip transition-show="flip-right" transition-hide="flip-left">
+                  cidades
+                </q-tooltip>
               </q-btn>
 
               <q-btn
@@ -143,6 +170,7 @@ import { api } from 'boot/axios'
 import VisualizarRegistro from 'src/components/VisualizarRegistro.vue'
 // import CardPerfilUsuario from 'src/components/usuarios/CardPerfilUsuario.vue'
 import CriarMidia from 'src/components/midia/CriarMidia.vue'
+import CidadesMidia from 'src/components/midia/CidadesMidia.vue'
 
 const $q = useQuasar()
 
@@ -156,10 +184,23 @@ const grid = ref(false)
 const dialog = reactive({
   editar: false,
   cadastrar: false,
+  cidades: false,
   visualizar: false,
 })
 
 const registroVisualizado = ref(null)
+const bannerDasCidades = ref(null)
+
+const abrirCidades = (banner) => {
+  bannerDasCidades.value = banner
+  dialog.cidades = true
+}
+
+// o anúncio nasce sem cidade: logo depois de criar, abre a escolha das cidades
+const aoCriar = async (criado) => {
+  await request()
+  if (criado) abrirCidades(criado)
+}
 
 const pagination = ref({
   page: 1,
@@ -169,7 +210,7 @@ const pagination = ref({
 const columns = [
   { name: 'id', label: 'ID', field: 'id', align: 'left' },
   { name: 'titulo', label: 'Título', field: 'titulo', align: 'left' },
-  { name: 'cidade', label: 'Cidade', field: (row) => row.cidade?.nome, align: 'left' },
+  { name: 'cidades', label: 'Cidades', field: (row) => row.cidades?.length, align: 'left' },
   { name: 'imagem', label: 'Banner', field: 'path', align: 'left' },
   { name: 'acoes', label: 'Ações', align: 'center' },
 ]

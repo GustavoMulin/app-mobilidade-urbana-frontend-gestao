@@ -1,11 +1,6 @@
 <template>
   <section>
-    <q-dialog
-      v-model="model"
-      :persistent="enviando"
-      @before-show="carregarCidades"
-      @before-hide="beforeHide"
-    >
+    <q-dialog v-model="model" :persistent="enviando" @before-hide="beforeHide">
       <q-card style="width: 700px; max-width: 80vw">
         <!-- HEADER -->
         <q-toolbar>
@@ -32,7 +27,7 @@
           <q-card-section>
             <div class="row">
               <!-- INPUTS -->
-              <div class="col-md-6 col-12">
+              <div class="col-12">
                 <q-item>
                   <q-input
                     class="full-width"
@@ -43,28 +38,6 @@
                     maxlength="120"
                     :disable="enviando"
                     :rules="[(val) => (val && val.length >= 3) || 'Campo obrigatório']"
-                  />
-                </q-item>
-              </div>
-
-              <!-- o app mostra o banner só para quem está nesta cidade -->
-              <div class="col-md-6 col-12">
-                <q-item>
-                  <q-select
-                    class="full-width"
-                    v-model="banner.cidade_id"
-                    :options="cidadesFiltradas"
-                    label="Cidade"
-                    outlined
-                    dense
-                    emit-value
-                    map-options
-                    use-input
-                    input-debounce="0"
-                    @filter="filtrarCidades"
-                    :loading="carregandoCidades"
-                    :disable="enviando"
-                    :rules="[(val) => !!val || 'Selecione a cidade']"
                   />
                 </q-item>
               </div>
@@ -115,7 +88,6 @@
 import { reactive, computed, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
-import { semAcento } from 'src/utils/texto'
 
 // PROPS
 const props = defineProps({
@@ -140,50 +112,16 @@ const TAMANHO_MAXIMO = 5 * 1024 * 1024
 // STATE
 const file = ref(null)
 const enviando = ref(false)
-const cidades = ref([])
-// são todos os municípios do IBGE: a lista só mostra os que combinam com o que foi digitado
-const cidadesFiltradas = ref([])
-const carregandoCidades = ref(false)
 
-function filtrarCidades(busca, update) {
-  const termo = semAcento(busca)
-  update(() => {
-    cidadesFiltradas.value = termo
-      ? cidades.value.filter((cidade) => semAcento(cidade.label).includes(termo))
-      : cidades.value
-  })
-}
-
+// as cidades onde o anúncio aparece são escolhidas depois, na lista (botão Cidades)
 const banner = reactive({
   titulo: '',
-  cidade_id: null,
 })
 
 // LIFECYCLE
 async function beforeHide() {
   file.value = null
-  Object.assign(banner, {
-    titulo: '',
-    cidade_id: null,
-  })
-}
-
-async function carregarCidades() {
-  carregandoCidades.value = true
-  try {
-    const { data } = await api.get('/cidades')
-    cidades.value = data.map((cidade) => ({
-      label: `${cidade.nome}/${cidade.uf}`,
-      value: cidade.id,
-    }))
-  } catch (err) {
-    $q.notify({
-      type: 'negative',
-      message: err.response?.data?.message || 'Não foi possível carregar as cidades.',
-    })
-  } finally {
-    carregandoCidades.value = false
-  }
+  Object.assign(banner, { titulo: '' })
 }
 
 // ACTION
@@ -198,7 +136,6 @@ async function request() {
   const data = new FormData()
   data.append('arquivo', file.value)
   data.append('titulo', banner.titulo)
-  data.append('cidade_id', banner.cidade_id)
 
   try {
     const res = await api.post('/publicidades', data, {
@@ -211,7 +148,7 @@ async function request() {
       message: res.data.message,
     })
 
-    emit('updated')
+    emit('updated', res.data.data)
     model.value = false
   } catch (err) {
     $q.notify({

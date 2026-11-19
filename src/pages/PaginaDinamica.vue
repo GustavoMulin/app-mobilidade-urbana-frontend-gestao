@@ -21,6 +21,268 @@
       </q-card-section>
     </q-card>
 
+    <q-card flat bordered class="cabecalho q-mb-lg">
+      <q-card-section>
+        <div class="row items-center q-gutter-sm">
+          <q-icon name="science" size="24px" color="deep-orange" />
+          <div class="text-h6">Simulação de chamadas (Porto Velho)</div>
+          <q-badge v-if="simulacao.rodando" color="green" class="q-ml-sm">
+            rodando · rodada {{ simulacao.rodadas }}
+          </q-badge>
+        </div>
+        <div class="text-grey-7 q-mt-xs">
+          Passageiros da massa de simulação pedem corridas em Porto Velho. A cada rodada, uma ou
+          mais regiões ganham demanda em bairros sorteados entre todos os 90 da cidade (centros
+          reais, do OpenStreetMap): a demanda sobe, segura o pico e desce, e depois surgem outras. O
+          dinâmico acompanha, de 1,1x para cima, em mais de um bairro ao mesmo tempo. A frota online
+          é repartida pelos bairros: com poucos motoristas por bairro a demanda passa da oferta e
+          esquenta. Liga o preço dinâmico na cidade. O mapa do motorista passa a mostrar a demanda e
+          as tarifas reais, e a lista abaixo mostra os valores que tocam para o motorista em foco.
+        </div>
+
+        <div class="row q-col-gutter-md q-mt-sm">
+          <div class="col-12">
+            <q-select
+              v-model="simulacao.cenario"
+              outlined
+              dense
+              clearable
+              emit-value
+              map-options
+              label="Cenário de despacho (opcional)"
+              :options="cenarios"
+              option-value="chave"
+              option-label="nome"
+              :disable="simulacao.rodando"
+              @update:model-value="aplicarCenario"
+            />
+            <div v-if="cenarioEscolhido" class="text-caption text-grey-7 q-mt-xs">
+              {{ cenarioEscolhido.descricao }} · {{ cenarioEscolhido.concorrentes }} concorrentes
+              por perto, {{ cenarioEscolhido.aceitacao_concorrentes }}% aceitam a chamada que
+              recebem. As regras da fila (tempo, descanso, pesos) ficam em
+              <router-link to="/despacho">Despacho de chamadas</router-link>.
+            </div>
+          </div>
+          <div class="col-6 col-md-2">
+            <q-input
+              v-model.number="simulacao.quantidade"
+              type="number"
+              outlined
+              dense
+              label="Pedidos por rodada"
+              :disable="simulacao.rodando"
+              :rules="[intervalo(1, 300)]"
+            />
+          </div>
+          <div class="col-6 col-md-2">
+            <q-input
+              v-model.number="simulacao.intervalo"
+              type="number"
+              outlined
+              dense
+              label="Intervalo"
+              suffix="s"
+              :disable="simulacao.rodando"
+              :rules="[intervalo(5, 120)]"
+            />
+          </div>
+          <div class="col-6 col-md-2">
+            <q-input
+              v-model.number="simulacao.motoristasOnline"
+              type="number"
+              outlined
+              dense
+              label="Motoristas online (massa)"
+              :disable="simulacao.rodando"
+              :rules="[intervalo(0, 4000)]"
+            />
+          </div>
+          <div class="col-6 col-md-2">
+            <q-input
+              v-model.number="simulacao.vidaPedido"
+              type="number"
+              outlined
+              dense
+              label="Vida do pedido"
+              suffix="min"
+              hint="Depois disso o passageiro desiste"
+              :rules="[intervalo(1, 30)]"
+            />
+          </div>
+          <div class="col-6 col-md-2">
+            <q-input
+              v-model.number="simulacao.focoPercentual"
+              type="number"
+              outlined
+              dense
+              label="Pedidos perto do foco"
+              suffix="%"
+              :rules="[intervalo(0, 100)]"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <q-select
+              v-model="simulacao.foco"
+              outlined
+              dense
+              use-input
+              input-debounce="300"
+              clearable
+              label="Motorista em foco (os valores que tocam para ele)"
+              :options="simulacao.opcoesDeFoco"
+              option-label="rotulo"
+              option-value="id"
+              @filter="filtrarMotoristas"
+            />
+          </div>
+        </div>
+
+        <div class="row q-gutter-sm q-mt-sm">
+          <q-btn
+            color="deep-orange"
+            icon="play_arrow"
+            label="Iniciar simulação"
+            :disable="simulacao.rodando"
+            :loading="simulacao.iniciando"
+            @click="iniciarSimulacao"
+          />
+          <q-btn
+            outline
+            color="negative"
+            icon="stop"
+            label="Parar e cancelar pedidos"
+            :disable="!simulacao.rodando && !simulacao.situacao"
+            @click="pararSimulacao"
+          />
+        </div>
+
+        <q-banner
+          v-if="!simulacao.rodando && simulacao.situacao?.pedidos_abertos > 0"
+          rounded
+          class="bg-orange-1 text-deep-orange-9 q-mt-md"
+        >
+          Sobraram {{ simulacao.situacao.pedidos_abertos }} pedidos de uma simulação anterior, que
+          não está mais rodando. Eles continuam sendo oferecidos aos motoristas. Use "Parar e
+          cancelar pedidos" para limpar.
+        </q-banner>
+
+        <q-banner v-if="simulacao.erro" rounded class="bg-red-1 text-negative q-mt-md">
+          {{ simulacao.erro }}
+        </q-banner>
+
+        <div v-if="simulacao.situacao" class="q-mt-md">
+          <div class="row q-gutter-md q-mb-md">
+            <q-chip icon="call" color="orange-2">
+              {{ simulacao.situacao.pedidos_abertos }} pedidos abertos
+            </q-chip>
+            <q-chip icon="directions_car" color="blue-2">
+              {{ simulacao.situacao.motoristas_online }} motoristas online
+            </q-chip>
+            <q-chip icon="local_fire_department" color="red-2">
+              {{ simulacao.situacao.dinamica.regioes.length }} regiões com dinâmico
+            </q-chip>
+            <q-chip
+              v-for="e in simulacao.situacao.eventos"
+              :key="e.bairro"
+              icon="local_fire_department"
+              color="deep-orange-2"
+            >
+              {{ e.bairro }} · {{ e.restam }} rodadas
+            </q-chip>
+            <q-chip icon="location_city" color="green-2">
+              {{ simulacao.situacao.bairros_com_dinamico }}/{{
+                simulacao.situacao.bairros_total
+              }}
+              bairros com dinâmico · rodada {{ simulacao.situacao.rodada }}
+            </q-chip>
+            <q-chip v-if="simulacao.criadas" icon="add_circle" color="grey-3">
+              {{ simulacao.criadas }} pedidos criados nesta simulação
+            </q-chip>
+          </div>
+
+          <div class="row q-col-gutter-md">
+            <div class="col-12 col-md-4">
+              <div class="text-subtitle2 q-mb-xs">Pedidos abertos por bairro</div>
+              <q-markup-table flat dense bordered>
+                <tbody>
+                  <tr v-for="b in simulacao.situacao.por_bairro" :key="b.bairro">
+                    <td>{{ b.bairro }}</td>
+                    <td class="text-right text-weight-bold">{{ b.pedidos }}</td>
+                  </tr>
+                  <tr v-if="!simulacao.situacao.por_bairro.length">
+                    <td colspan="2" class="text-grey-6">Nenhum pedido aberto</td>
+                  </tr>
+                </tbody>
+              </q-markup-table>
+            </div>
+
+            <div class="col-12 col-md-3">
+              <div class="text-subtitle2 q-mb-xs">Regiões com dinâmico</div>
+              <q-markup-table flat dense bordered>
+                <tbody>
+                  <tr v-for="r in simulacao.situacao.dinamica.regioes" :key="r.celula">
+                    <td>
+                      <q-badge :style="{ background: corDaIntensidade(r.intensidade) }">
+                        {{ r.rotulo }}
+                      </q-badge>
+                    </td>
+                    <td>{{ r.bairro }}</td>
+                  </tr>
+                  <tr v-if="!simulacao.situacao.dinamica.regioes.length">
+                    <td colspan="2" class="text-grey-6">Nenhuma região esquentou ainda</td>
+                  </tr>
+                </tbody>
+              </q-markup-table>
+            </div>
+
+            <div class="col-12 col-md-5">
+              <div class="text-subtitle2 q-mb-xs">
+                Tocando para o motorista em foco
+                <span v-if="simulacao.situacao.foco" class="text-grey-7">
+                  ({{ simulacao.situacao.foco.dentro_do_raio }} no raio,
+                  {{ simulacao.situacao.foco.com_dinamico }} com dinâmico)
+                </span>
+              </div>
+              <q-banner
+                v-if="simulacao.situacao.foco && !simulacao.situacao.foco.online"
+                dense
+                rounded
+                class="bg-orange-1 q-mb-sm"
+              >
+                O motorista em foco está offline no app: conecte para as chamadas tocarem.
+              </q-banner>
+              <q-markup-table flat dense bordered>
+                <thead>
+                  <tr>
+                    <th class="text-left">Origem</th>
+                    <th class="text-right">Dist.</th>
+                    <th class="text-right">Recebe</th>
+                    <th class="text-right">Dinâmico</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="c in simulacao.situacao.foco?.chamadas ?? []" :key="c.corrida_id">
+                    <td>{{ c.origem }}</td>
+                    <td class="text-right">{{ c.distancia_ate_origem_km }} km</td>
+                    <td class="text-right text-weight-bold">{{ emReais(c.valor_motorista) }}</td>
+                    <td class="text-right">
+                      <q-badge v-if="c.multiplicador" color="deep-orange">
+                        {{ c.multiplicador }}x · {{ emReais(c.valor_dinamico) }}
+                      </q-badge>
+                      <span v-else class="text-grey-6">—</span>
+                    </td>
+                  </tr>
+                  <tr v-if="!simulacao.foco">
+                    <td colspan="4" class="text-grey-6">Escolha um motorista em foco</td>
+                  </tr>
+                </tbody>
+              </q-markup-table>
+            </div>
+          </div>
+        </div>
+      </q-card-section>
+    </q-card>
+
     <div v-if="carregando" class="text-center q-pa-xl" role="status">
       <q-spinner color="primary" size="36px" />
       <div class="q-mt-sm">Carregando...</div>
@@ -284,8 +546,9 @@
                   label="Multiplicador máximo"
                   suffix="x"
                   step="0.1"
-                  hint="Teto no modo multiplicador"
-                  :rules="[intervalo(1.1, 10)]"
+                  clearable
+                  hint="Teto no modo multiplicador. Vazio = sem teto (flutua livremente)"
+                  :rules="[(v) => v === null || v === '' || intervalo(1.1, 10)(v)]"
                 />
               </div>
               <div class="col-12 col-sm-6">
@@ -488,7 +751,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 
@@ -646,7 +909,14 @@ const CAMPOS_DAS_REGRAS = [
   'janela_minutos',
   'validade_minutos',
 ]
-const soAsRegras = (origem) => Object.fromEntries(CAMPOS_DAS_REGRAS.map((c) => [c, origem[c]]))
+// campo numérico apagado vira null (teto do multiplicador vazio = sem teto)
+const soAsRegras = (origem) =>
+  Object.fromEntries(
+    CAMPOS_DAS_REGRAS.map((c) => [
+      c,
+      c === 'multiplicador_maximo' && origem[c] === '' ? null : origem[c],
+    ]),
+  )
 
 const jaConfigurada = computed(() =>
   cidades.value.some((c) => c.cidade_id === formulario.cidade_id),
@@ -839,7 +1109,136 @@ function removerRegiao(regiao) {
   })
 }
 
-onMounted(carregar)
+// ---- simulação de chamadas (gatilho de teste)
+const emReais = (valor) =>
+  Number(valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+const simulacao = reactive({
+  quantidade: 60,
+  intervalo: 8,
+  motoristasOnline: 400,
+  focoPercentual: 35,
+  vidaPedido: 2,
+  cenario: null,
+  foco: null,
+  opcoesDeFoco: [],
+  rodando: false,
+  iniciando: false,
+  rodadas: 0,
+  criadas: 0,
+  situacao: null,
+  erro: '',
+})
+let temporizadorDaSimulacao = null
+
+// cenários de despacho: preenchem o ritmo da simulação e definem a concorrência do foco
+const cenarios = ref([])
+const cenarioEscolhido = computed(() => cenarios.value.find((c) => c.chave === simulacao.cenario))
+
+function aplicarCenario(chave) {
+  const cenario = cenarios.value.find((c) => c.chave === chave)
+  if (!cenario) return
+  simulacao.quantidade = cenario.quantidade
+  simulacao.focoPercentual = cenario.foco_percentual
+  simulacao.vidaPedido = cenario.vida_pedido_min
+}
+
+api
+  .get('/dinamica/simulacao/cenarios')
+  .then(({ data }) => (cenarios.value = data))
+  .catch(() => (cenarios.value = []))
+
+function filtrarMotoristas(texto, atualizar) {
+  api
+    .get('/motoristas', { params: { search: texto, rowsPerPage: 10 } })
+    .then(({ data }) => {
+      atualizar(() => {
+        simulacao.opcoesDeFoco = data.data.map((m) => ({
+          id: m.id,
+          rotulo: `#${m.id} ${m.name ?? m.nome ?? ''}`.trim(),
+        }))
+      })
+    })
+    .catch(() => atualizar(() => (simulacao.opcoesDeFoco = [])))
+}
+
+const mensagemDoErro = (e) => e.response?.data?.message ?? 'Não foi possível falar com o servidor.'
+
+async function rodadaDaSimulacao() {
+  try {
+    const { data } = await api.post('/dinamica/simulacao/rodada', {
+      quantidade: simulacao.quantidade,
+      foco_percentual: simulacao.focoPercentual,
+      vida_pedido_min: simulacao.vidaPedido,
+      motorista_foco_id: simulacao.foco?.id ?? null,
+    })
+    simulacao.rodadas += 1
+    simulacao.criadas += data.criadas
+    simulacao.situacao = data.situacao
+    simulacao.erro = ''
+  } catch (e) {
+    simulacao.erro = mensagemDoErro(e)
+  }
+  // a próxima só depois que esta termina: rodada lenta não empilha
+  if (simulacao.rodando) {
+    temporizadorDaSimulacao = setTimeout(rodadaDaSimulacao, simulacao.intervalo * 1000)
+  }
+}
+
+async function iniciarSimulacao() {
+  simulacao.iniciando = true
+  simulacao.erro = ''
+  try {
+    await api.post('/dinamica/simulacao/iniciar', {
+      motoristas_online: simulacao.motoristasOnline,
+      motorista_foco_id: simulacao.foco?.id ?? null,
+      cenario: simulacao.cenario ?? null,
+    })
+    simulacao.rodando = true
+    simulacao.rodadas = 0
+    simulacao.criadas = 0
+    await rodadaDaSimulacao()
+    await carregar()
+  } catch (e) {
+    simulacao.erro = mensagemDoErro(e)
+  } finally {
+    simulacao.iniciando = false
+  }
+}
+
+async function pararSimulacao() {
+  simulacao.rodando = false
+  clearTimeout(temporizadorDaSimulacao)
+  try {
+    const { data } = await api.post('/dinamica/simulacao/parar')
+    $q.notify({ type: 'positive', message: `${data.cancelados} pedidos da simulação cancelados.` })
+    const { data: situacao } = await api.get('/dinamica/simulacao/situacao', {
+      params: { motorista_foco_id: simulacao.foco?.id ?? undefined },
+    })
+    simulacao.situacao = situacao
+    await carregar()
+  } catch (e) {
+    simulacao.erro = mensagemDoErro(e)
+  }
+}
+
+// sair da página interrompe só o laço daqui; os pedidos abertos ficam até parar
+onBeforeUnmount(() => clearTimeout(temporizadorDaSimulacao))
+
+// ao abrir a página, vê no servidor se sobrou simulação (o estado do laço só existe aqui)
+async function verSobrasDaSimulacao() {
+  try {
+    const { data } = await api.get('/dinamica/simulacao/situacao')
+    if (data.pedidos_abertos > 0) simulacao.situacao = data
+  } catch {
+    // sem a situação, a página segue como estava
+  }
+}
+
+onMounted(() => {
+  carregar()
+  verSobrasDaSimulacao()
+})
 </script>
 
 <style scoped>

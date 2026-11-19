@@ -96,6 +96,16 @@ const routes = [
         component: () => import('src/pages/PaginaTarifas.vue'),
       },
       {
+        path: 'cupons',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/PaginaCupons.vue'),
+      },
+      {
+        path: 'avatares',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/PaginaAvatares.vue'),
+      },
+      {
         path: 'avaliacoes',
         meta: { permissao: 'configuracoes.gerenciar' },
         component: () => import('src/pages/avaliacoes/PaginaAvaliacoes.vue'),
@@ -126,6 +136,11 @@ const routes = [
         path: 'dinamica',
         meta: { permissao: 'configuracoes.gerenciar' },
         component: () => import('src/pages/PaginaDinamica.vue'),
+      },
+      {
+        path: 'despacho',
+        meta: { permissao: 'configuracoes.gerenciar' },
+        component: () => import('src/pages/PaginaDespacho.vue'),
       },
       {
         path: 'gorjeta',
