@@ -156,6 +156,16 @@
           />
         </div>
 
+        <q-banner
+          v-if="!simulacao.rodando && simulacao.situacao?.pedidos_abertos > 0"
+          rounded
+          class="bg-orange-1 text-deep-orange-9 q-mt-md"
+        >
+          Sobraram {{ simulacao.situacao.pedidos_abertos }} pedidos de uma simulação anterior, que
+          não está mais rodando. Eles continuam sendo oferecidos aos motoristas. Use "Parar e
+          cancelar pedidos" para limpar.
+        </q-banner>
+
         <q-banner v-if="simulacao.erro" rounded class="bg-red-1 text-negative q-mt-md">
           {{ simulacao.erro }}
         </q-banner>
@@ -1215,7 +1225,20 @@ async function pararSimulacao() {
 // sair da página interrompe só o laço daqui; os pedidos abertos ficam até parar
 onBeforeUnmount(() => clearTimeout(temporizadorDaSimulacao))
 
-onMounted(carregar)
+// ao abrir a página, vê no servidor se sobrou simulação (o estado do laço só existe aqui)
+async function verSobrasDaSimulacao() {
+  try {
+    const { data } = await api.get('/dinamica/simulacao/situacao')
+    if (data.pedidos_abertos > 0) simulacao.situacao = data
+  } catch {
+    // sem a situação, a página segue como estava
+  }
+}
+
+onMounted(() => {
+  carregar()
+  verSobrasDaSimulacao()
+})
 </script>
 
 <style scoped>
